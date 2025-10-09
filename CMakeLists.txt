@@ -3,3 +3,8 @@ project(RCompiler)
 set(CMAKE_CXX_STANDARD 20)
 
 include_directories(include)
+
+add_executable(code
+        src/lexer.cpp
+        src/main.cpp
+)
