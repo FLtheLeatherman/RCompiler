@@ -110,6 +110,8 @@ enum class Token {
     kRSquare,
     kLParenthese,
     kRParenthese,
+
+    kEOF,
 };
 
 class Lexer {
