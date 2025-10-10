@@ -6,5 +6,8 @@ include_directories(include)
 
 add_executable(code
         src/lexer.cpp
+        src/visitor.cpp
+        src/astnode.cpp
+        src/parser.cpp
         src/main.cpp
 )

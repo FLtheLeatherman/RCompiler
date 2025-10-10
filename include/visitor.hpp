@@ -1,6 +1,6 @@
 #pragma once
 
-#include "astnode.hpp"
+#include "utils.hpp"
 
 class ASTVisitor {
 public:
