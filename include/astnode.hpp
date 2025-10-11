@@ -42,8 +42,16 @@ private:
     std::unique_ptr<FunctionReturnType> function_return_type;
     std::unique_ptr<BlockExpression> block_expression;
 public:
-    Function(bool is_const, std::string identifier, std::unique_ptr<FunctionParameters> function_parameters, std::unique_ptr<FunctionReturnType> function_return_type, std::unique_ptr<BlockExpression> block_expression)
-        : is_const(is_const), identifier(std::move(identifier)), function_parameters(std::move(function_parameters)), function_return_type(std::move(function_return_type)), block_expression(std::move(block_expression)) {}
+    Function(bool is_const, 
+        std::string identifier, 
+        std::unique_ptr<FunctionParameters> function_parameters, 
+        std::unique_ptr<FunctionReturnType> function_return_type, 
+        std::unique_ptr<BlockExpression> block_expression)
+        : is_const(is_const), 
+        identifier(std::move(identifier)), 
+        function_parameters(std::move(function_parameters)), 
+        function_return_type(std::move(function_return_type)), 
+        block_expression(std::move(block_expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -177,14 +185,6 @@ public:
     }
 };
 
-class BlockExpression : public ASTNode {
-public:
-    BlockExpression() {}
-    void accept(ASTVisitor* visitor) override {
-        visitor->visit(*this);
-    }
-};
-
 class StructStruct : public ASTNode {
 private:
     std::string identifier;
@@ -277,6 +277,45 @@ public:
     }
 };
 
+class Statement : public ASTNode {
+private:
+    std::unique_ptr<ASTNode> child; // nullptr(,), Item, LetStatement, ExpressionStatement
+public:
+    Statement(std::unique_ptr<ASTNode> child)
+        : child(std::move(child)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class LetStatement : public ASTNode {
+private:
+    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::unique_ptr<Type> type;
+    std::unique_ptr<Expression> expression;
+public:
+    LetStatement(std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt, 
+        std::unique_ptr<Type> type, 
+        std::unique_ptr<Expression> expression)
+        : pattern_no_top_alt(std::move(pattern_no_top_alt)),
+        type(std::move(type)),
+        expression(std::move(expression))  {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ExpressionStatement : public ASTNode {
+private:
+    std::unique_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
+public:
+    ExpressionStatement(std::unique_ptr<ASTNode> child)
+        : child(std::move(child)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
 class Expression : public ASTNode {
 public:
     Expression() {}
@@ -285,6 +324,30 @@ public:
     }
 };
 
+class ExpressionWithoutBlock : public ASTNode {
+public:
+    ExpressionWithoutBlock() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ExpressionWithBlock : public ASTNode {
+public:
+    ExpressionWithBlock() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+
+class BlockExpression : public ASTNode {
+public:
+    BlockExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
 class PatternNoTopAlt : public ASTNode {
 public:
     PatternNoTopAlt() {}

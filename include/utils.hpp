@@ -5,6 +5,8 @@ class ASTVisitor;
 class ASTNode;
 
 class Crate;
+
+/****Items****/
 class Item;
 
 class Function;
@@ -20,7 +22,6 @@ class ShorthandSelf;
 class TypedSelf;
 class FunctionParam;
 class FunctionReturnType;
-class BlockExpression;
 
 class StructStruct;
 class StructFields;
@@ -33,9 +34,22 @@ class AssociatedItem;
 
 class InherentImpl;
 class TraitImpl;
+/****Items****/
 
+/****Statements & expressions****/
+class Statement;
+class LetStatement;
+class ExpressionStatement;
 class Expression;
+class ExpressionWithoutBlock;
+class ExpressionWithBlock;
+class BlockExpression;
+/****Statements & expressions****/
 
+/****Patterns****/
 class PatternNoTopAlt;
+/****Patterns****/
 
+/****Types****/
 class Type;
+/****Types****/

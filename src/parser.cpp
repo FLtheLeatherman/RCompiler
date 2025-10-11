@@ -30,6 +30,7 @@ std::unique_ptr<Crate> Parser::parseCrate() {
     // std::cerr << "}\n";
     return std::make_unique<Crate>(std::move(items));
 }
+
 std::unique_ptr<Item> Parser::parseItem() {
     // std::cerr << "Item: {\n";
     // std::cerr << (int)peek() << std::endl;
@@ -56,7 +57,6 @@ std::unique_ptr<Item> Parser::parseItem() {
     }
     // std::cerr << "}\n";
 }
-
 std::unique_ptr<Function> Parser::parseFunction() {
     // std::cerr << "Function: {\n";
     bool is_const = false;
@@ -91,7 +91,11 @@ std::unique_ptr<Function> Parser::parseFunction() {
         block_expression = std::move(parseBlockExpression());
     }
     // std::cerr << "}\n";
-    return std::make_unique<Function>(is_const, std::move(identifier), std::move(function_parameters), std::move(function_return_type), std::move(block_expression));
+    return std::make_unique<Function>(is_const, 
+        std::move(identifier), 
+        std::move(function_parameters), 
+        std::move(function_return_type), 
+        std::move(block_expression));
 }
 std::unique_ptr<Struct> Parser::parseStruct() {
     return std::make_unique<Struct>(std::move(parseStructStruct()));
@@ -167,7 +171,6 @@ std::unique_ptr<Implementation> Parser::parseImplementation() {
         throw std::runtime_error("parse failed!");
     }
 }
-
 std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
     // std::cerr << "FunctionParameters: {";
     bool has_self = false;
@@ -250,10 +253,6 @@ std::unique_ptr<FunctionReturnType> Parser::parseFunctionReturnType() {
         return nullptr;
     }
 }
-std::unique_ptr<BlockExpression> Parser::parseBlockExpression() {
-    return nullptr;
-}
-
 std::unique_ptr<StructStruct> Parser::parseStructStruct() {
     std::string identifier;
     std::unique_ptr<StructFields> struct_fields = nullptr;
@@ -309,7 +308,6 @@ std::unique_ptr<StructField> Parser::parseStructField() {
     type = std::move(parseType());
     return std::make_unique<StructField>(std::move(identifier), std::move(type));
 }
-
 std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
     std::vector<std::unique_ptr<EnumVariant>> enum_variant;
     enum_variant.push_back(std::move(parseEnumVariant()));
@@ -339,7 +337,6 @@ std::unique_ptr<EnumVariant> Parser::parseEnumVariant() {
     }
     return std::make_unique<EnumVariant>(std::move(identifier));
 }
-
 std::unique_ptr<AssociatedItem> Parser::parseAssociatedItem() {
     if (peek() == Token::kConst) {
         if (pos < tokens.size() && tokens[pos + 1].first == Token::kFn) {
@@ -351,7 +348,6 @@ std::unique_ptr<AssociatedItem> Parser::parseAssociatedItem() {
         return std::make_unique<AssociatedItem>(std::move(parseFunction()));
     }
 }
-
 std::unique_ptr<InherentImpl> Parser::parseInherentImpl() {
     std::unique_ptr<Type> type;
     std::vector<std::unique_ptr<AssociatedItem>> associated_item;
@@ -393,7 +389,60 @@ std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
     return std::make_unique<TraitImpl>(std::move(identifier), std::move(type), std::move(associated_item));
 }
 
+std::unique_ptr<Statement> Parser::parseStatement() {
+    if (peek() == Token::kSemi) {
+        consume();
+        return std::make_unique<Statement>(nullptr);
+    } else if (peek() == Token::kLet) {
+        return std::make_unique<Statement>(std::move(parseLetStatement()));
+    } else {
+        std::unique_ptr<ASTNode> child;
+        size_t tmp = pos;
+        try {
+            child = std::move(parseItem());
+        } catch (...) {
+            pos = tmp;
+            child = std::move(parseExpressionStatement());
+        }
+        return std::make_unique<Statement>(std::move(child));
+    }
+}
+std::unique_ptr<LetStatement> Parser::parseLetStatement() {
+    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::unique_ptr<Type> type;
+    std::unique_ptr<Expression> expression;
+    match(Token::kLet);
+    pattern_no_top_alt = parsePatternNoTopAlt();
+    match(Token::kColon);
+    type = parseType();
+    match(Token::kEq);
+    expression = parseExpression();
+    match(Token::kSemi);
+    return std::make_unique<LetStatement>(std::move(pattern_no_top_alt), std::move(type), std::move(expression));
+}
+std::unique_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
+    std::unique_ptr<ASTNode> child;
+    size_t tmp = pos;
+    try {
+        child = parseExpressionWithBlock();
+        if (peek() == Token::kSemi) consume();
+    } catch (...) {
+        pos = tmp;
+        child = parseExpressionWithoutBlock();
+        match(Token::kSemi);
+    }
+    return std::make_unique<ExpressionStatement>(std::move(child));
+}
 std::unique_ptr<Expression> Parser::parseExpression() {
+    return nullptr;
+}
+std::unique_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
+    return nullptr;
+}
+std::unique_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
+    return nullptr;
+}
+std::unique_ptr<BlockExpression> Parser::parseBlockExpression() {
     return nullptr;
 }
 

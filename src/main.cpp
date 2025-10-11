@@ -3,7 +3,7 @@
 #include "parser.hpp"
 
 int main() {
-    freopen("test.in", "r", stdin);
+    // freopen("test.in", "r", stdin);
     std::string code;
     char ch = getchar();
     while (ch != EOF) {
