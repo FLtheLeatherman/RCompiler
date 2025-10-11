@@ -69,13 +69,13 @@ std::unique_ptr<Function> Parser::parseFunction() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    match(Token::kLParenthese);
-    if (peek() == Token::kRParenthese) {
+    match(Token::kLCurly);
+    if (peek() == Token::kRCurly) {
         consume();
         function_parameters = nullptr;
     } else {
         function_parameters = std::move(parseFunctionParameters());
-        match(Token::kRParenthese);
+        match(Token::kRCurly);
     }
     function_return_type = std::move(parseFunctionReturnType());
     if (peek() == Token::kSemi) {
@@ -105,7 +105,7 @@ std::unique_ptr<Enumeration> Parser::parseEnumeration() {
         enum_variants = std::move(parseEnumVariants());
         match(Token::kRParenthese);
     }
-    return make_unique<Enumeration>(std::move(identifier), std::move(enum_variants));
+    return std::make_unique<Enumeration>(std::move(identifier), std::move(enum_variants));
 }
 std::unique_ptr<ConstantItem> Parser::parseConstantItem() {
     std::string identifier;
@@ -125,7 +125,7 @@ std::unique_ptr<ConstantItem> Parser::parseConstantItem() {
         expression = std::move(parseExpression());
     }
     match(Token::kSemi);
-    return make_unique<ConstantItem>(std::move(identifier), std::move(type), std::move(expression));
+    return std::make_unique<ConstantItem>(std::move(identifier), std::move(type), std::move(expression));
 }
 std::unique_ptr<Trait> Parser::parseTrait() {
     std::string identifier;
@@ -152,34 +152,89 @@ std::unique_ptr<Trait> Parser::parseTrait() {
 std::unique_ptr<Implementation> Parser::parseImplementation() {
     match(Token::kImpl);
     if (peek() == Token::kType) {
-        return make_unique<Implementation>(std::move(parseInherentImpl()));
+        return std::make_unique<Implementation>(std::move(parseInherentImpl()));
     } else if (peek() == Token::kIdentifier) {
-        return make_unique<Implementation>(std::move(parseTraitImpl()));
+        return std::make_unique<Implementation>(std::move(parseTraitImpl()));
     } else {
         throw std::runtime_error("parse failed!");
     }
 }
 
 std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
-    return nullptr;
+    bool has_self = false;
+    std::unique_ptr<SelfParam> self_param = nullptr;
+    std::vector<std::unique_ptr<FunctionParam>> function_param;
+    size_t tmp = pos;
+    for (size_t _ = 0; _ < 3; ++_) {
+        if (peek() != Token::kSelf) consume();
+        else has_self = true;
+    }
+    pos = tmp;
+    if (has_self) {
+        self_param = std::move(parseSelfParam());
+    }
+    while (1) {
+        if (peek() == Token::kComma) {
+            consume();
+        } else if (peek() == Token::kRCurly) {
+            break;
+        } else {
+            auto tmp = std::move(parseFunctionParam());
+            function_param.push_back(std::move(tmp));
+        }
+    }
+    return std::make_unique<FunctionParameters>(std::move(self_param), std::move(function_param));
 }
 std::unique_ptr<SelfParam> Parser::parseSelfParam() {
-    return nullptr;
+    size_t tmp = pos;
+    while (peek() != Token::kSelf) consume();
+    consume();
+    if (peek() == Token::kColon) {
+        pos = tmp;
+        return std::make_unique<SelfParam>(std::move(parseTypedSelf()));
+    } else {
+        pos = tmp;
+        return std::make_unique<SelfParam>(std::move(parseShorthandSelf()));
+    }
 }
 std::unique_ptr<ShorthandSelf> Parser::parseShorthandSelf() {
-    return nullptr;
+    bool is_reference = false, is_mutable = false;
+    if (peek() == Token::kAnd) {
+        is_reference = true;
+        consume();
+    }
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume();
+    }
+    match(Token::kSelf);
+    return std::make_unique<ShorthandSelf>(is_reference, is_mutable);
 }
 std::unique_ptr<TypedSelf> Parser::parseTypedSelf() {
-    return nullptr;
+    bool is_mutable = false;
+    std::unique_ptr<Type> type = nullptr;
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume();
+    }
+    match(Token::kSelf);
+    match(Token::kColon);
+    type = std::move(parseType());
+    return std::make_unique<TypedSelf>(is_mutable, std::move(type));
 }
 std::unique_ptr<FunctionParam> Parser::parseFunctionParam() {
-    return nullptr;
+    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::unique_ptr<Type> type;
+    pattern_no_top_alt = std::move(parsePatternNoTopAlt());
+    match(Token::kColon);
+    type = std::move(parseType());
+    return make_unique<FunctionParam>(std::move(pattern_no_top_alt), std::move(type));
 }
 std::unique_ptr<FunctionReturnType> Parser::parseFunctionReturnType() {
     std::unique_ptr<Type> type;
     match(Token::kRArrow);
     type = std::move(parseType());
-    return make_unique<FunctionReturnType>(std::move(type));
+    return std::make_unique<FunctionReturnType>(std::move(type));
 }
 std::unique_ptr<BlockExpression> Parser::parseBlockExpression() {
     return nullptr;
@@ -206,7 +261,7 @@ std::unique_ptr<StructStruct> Parser::parseStructStruct() {
             match(Token::kRParenthese);
         }
     }
-    return make_unique<StructStruct>(std::move(identifier), std::move(struct_fields));
+    return std::make_unique<StructStruct>(std::move(identifier), std::move(struct_fields));
 }
 std::unique_ptr<StructFields> Parser::parseStructFields() {
     std::vector<std::unique_ptr<StructField>> struct_field;
@@ -225,7 +280,7 @@ std::unique_ptr<StructFields> Parser::parseStructFields() {
             }
         }
     }
-    return make_unique<StructFields>(std::move(struct_field));
+    return std::make_unique<StructFields>(std::move(struct_field));
 }
 std::unique_ptr<StructField> Parser::parseStructField() {
     std::string identifier;
@@ -238,7 +293,7 @@ std::unique_ptr<StructField> Parser::parseStructField() {
     }
     match(Token::kColon);
     type = std::move(parseType());
-    return make_unique<StructField>(std::move(identifier), std::move(type));
+    return std::make_unique<StructField>(std::move(identifier), std::move(type));
 }
 
 std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
@@ -258,7 +313,7 @@ std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
             }
         }
     }
-    return make_unique<EnumVariants>(std::move(enum_variant));
+    return std::make_unique<EnumVariants>(std::move(enum_variant));
 }
 std::unique_ptr<EnumVariant> Parser::parseEnumVariant() {
     std::string identifier;
@@ -268,18 +323,18 @@ std::unique_ptr<EnumVariant> Parser::parseEnumVariant() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    return make_unique<EnumVariant>(std::move(identifier));
+    return std::make_unique<EnumVariant>(std::move(identifier));
 }
 
 std::unique_ptr<AssociatedItem> Parser::parseAssociatedItem() {
     if (peek() == Token::kConst) {
         if (pos < tokens.size() && tokens[pos + 1].first == Token::kFn) {
-            return make_unique<AssociatedItem>(std::move(parseFunction()));
+            return std::make_unique<AssociatedItem>(std::move(parseFunction()));
         } else {
-            return make_unique<AssociatedItem>(std::move(parseConstantItem()));
+            return std::make_unique<AssociatedItem>(std::move(parseConstantItem()));
         }
     } else {
-        return make_unique<AssociatedItem>(std::move(parseFunction()));
+        return std::make_unique<AssociatedItem>(std::move(parseFunction()));
     }
 }
 
@@ -297,7 +352,7 @@ std::unique_ptr<InherentImpl> Parser::parseInherentImpl() {
             associated_item.push_back(std::move(tmp));
         }
     }
-    return make_unique<InherentImpl>(std::move(type), std::move(associated_item));
+    return std::make_unique<InherentImpl>(std::move(type), std::move(associated_item));
 }
 std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
     std::string identifier;
@@ -321,13 +376,17 @@ std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
             associated_item.push_back(std::move(tmp));
         }
     }
-    return make_unique<TraitImpl>(std::move(identifier), std::move(type), std::move(associated_item));
-}
-
-std::unique_ptr<Type> Parser::parseType() {
-    return nullptr;
+    return std::make_unique<TraitImpl>(std::move(identifier), std::move(type), std::move(associated_item));
 }
 
 std::unique_ptr<Expression> Parser::parseExpression() {
+    return nullptr;
+}
+
+std::unique_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
+    return nullptr;
+}
+
+std::unique_ptr<Type> Parser::parseType() {
     return nullptr;
 }

@@ -108,40 +108,59 @@ public:
 };
 
 class FunctionParameters : public ASTNode {
+private:
+    std::unique_ptr<SelfParam> self_param;
+    std::vector<std::unique_ptr<FunctionParam>> function_param;
 public:
-    FunctionParameters() {}
+    FunctionParameters(std::unique_ptr<SelfParam> self_param, std::vector<std::unique_ptr<FunctionParam>> function_param)
+        : self_param(std::move(self_param)), function_param(std::move(function_param)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class SelfParam : public ASTNode {
+private:
+    std::unique_ptr<ASTNode> child; // ShorthandSelf, TypedSelf
 public:
-    SelfParam() {}
+    SelfParam(std::unique_ptr<ASTNode> child)
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class ShorthandSelf : public ASTNode {
+private:
+    bool is_reference;
+    bool is_mutable;
 public:
-    ShorthandSelf() {}
+    ShorthandSelf(bool is_reference, bool is_mutable)
+        : is_reference(is_reference), is_mutable(is_mutable) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class TypedSelf : public ASTNode {
+private:
+    bool is_mutable;
+    std::unique_ptr<Type> type;
 public:
-    TypedSelf() {}
+    TypedSelf(bool is_mutable, std::unique_ptr<Type> type) 
+        : is_mutable(is_mutable), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class FunctionParam : public ASTNode {
+private:
+    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::unique_ptr<Type> type;
 public:
-    FunctionParam() {}
+    FunctionParam(std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt, std::unique_ptr<Type> type)
+        : pattern_no_top_alt(std::move(pattern_no_top_alt)), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -258,17 +277,25 @@ public:
     }
 };
 
-class Type : public ASTNode {
+class Expression : public ASTNode {
 public:
-    Type() {}
+    Expression() {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class Expression : public ASTNode {
+class PatternNoTopAlt : public ASTNode {
 public:
-    Expression() {}
+    PatternNoTopAlt() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class Type : public ASTNode {
+public:
+    Type() {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

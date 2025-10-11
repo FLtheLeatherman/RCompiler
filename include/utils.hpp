@@ -32,6 +32,8 @@ class AssociatedItem;
 class InherentImpl;
 class TraitImpl;
 
-class Type;
-
 class Expression;
+
+class PatternNoTopAlt;
+
+class Type;

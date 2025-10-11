@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "lexer.hpp"
 #include "astnode.hpp"
 
@@ -45,8 +46,10 @@ public:
 
     std::unique_ptr<InherentImpl> parseInherentImpl();
     std::unique_ptr<TraitImpl> parseTraitImpl();
-
-    std::unique_ptr<Type> parseType();
     
     std::unique_ptr<Expression> parseExpression();
+
+    std::unique_ptr<PatternNoTopAlt> parsePatternNoTopAlt();
+
+    std::unique_ptr<Type> parseType();
 };
