@@ -25,5 +25,6 @@ std::vector<std::pair<Token, std::string>> Lexer::lex(std::string str) {
             i += best_len - 1;
         }
     }
+    res.push_back(std::make_pair(Token::kEOF, "EOF"));
     return res;
 }

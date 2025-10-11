@@ -20,15 +20,19 @@ void Parser::match(Token token) {
 }
 
 std::unique_ptr<Crate> Parser::parseCrate() {
+    // std::cerr << "Crate: {\n";
     std::vector<std::unique_ptr<Item>> items;
     while (1) {
         auto curItem = parseItem();
         if (curItem == nullptr) break;
         items.push_back(std::move(curItem));
     }
+    // std::cerr << "}\n";
     return std::make_unique<Crate>(std::move(items));
 }
 std::unique_ptr<Item> Parser::parseItem() {
+    // std::cerr << "Item: {\n";
+    // std::cerr << (int)peek() << std::endl;
     if (peek() == Token::kEOF) {
         return nullptr;
     } else if (peek() == Token::kFn) {
@@ -50,9 +54,11 @@ std::unique_ptr<Item> Parser::parseItem() {
     } else {
         throw std::runtime_error("parse failed!");
     }
+    // std::cerr << "}\n";
 }
 
 std::unique_ptr<Function> Parser::parseFunction() {
+    // std::cerr << "Function: {\n";
     bool is_const = false;
     std::string identifier;
     std::unique_ptr<FunctionParameters> function_parameters = nullptr;
@@ -69,13 +75,14 @@ std::unique_ptr<Function> Parser::parseFunction() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    match(Token::kLCurly);
-    if (peek() == Token::kRCurly) {
+    // std::cerr << "function name: " << identifier << std::endl;
+    match(Token::kLParenthese);
+    if (peek() == Token::kRParenthese) {
         consume();
         function_parameters = nullptr;
     } else {
         function_parameters = std::move(parseFunctionParameters());
-        match(Token::kRCurly);
+        match(Token::kRParenthese);
     }
     function_return_type = std::move(parseFunctionReturnType());
     if (peek() == Token::kSemi) {
@@ -83,6 +90,7 @@ std::unique_ptr<Function> Parser::parseFunction() {
     } else {
         block_expression = std::move(parseBlockExpression());
     }
+    // std::cerr << "}\n";
     return std::make_unique<Function>(is_const, std::move(identifier), std::move(function_parameters), std::move(function_return_type), std::move(block_expression));
 }
 std::unique_ptr<Struct> Parser::parseStruct() {
@@ -98,12 +106,12 @@ std::unique_ptr<Enumeration> Parser::parseEnumeration() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    match(Token::kLParenthese);
-    if (peek() == Token::kRParenthese) {
+    match(Token::kLCurly);
+    if (peek() == Token::kRCurly) {
         consume();
     } else {
         enum_variants = std::move(parseEnumVariants());
-        match(Token::kRParenthese);
+        match(Token::kRCurly);
     }
     return std::make_unique<Enumeration>(std::move(identifier), std::move(enum_variants));
 }
@@ -137,9 +145,9 @@ std::unique_ptr<Trait> Parser::parseTrait() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    match(Token::kLParenthese);
+    match(Token::kLCurly);
     while (1) {
-        if (peek() == Token::kRParenthese) {
+        if (peek() == Token::kRCurly) {
             consume();
             break;
         } else {
@@ -161,6 +169,7 @@ std::unique_ptr<Implementation> Parser::parseImplementation() {
 }
 
 std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
+    // std::cerr << "FunctionParameters: {";
     bool has_self = false;
     std::unique_ptr<SelfParam> self_param = nullptr;
     std::vector<std::unique_ptr<FunctionParam>> function_param;
@@ -176,13 +185,14 @@ std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
     while (1) {
         if (peek() == Token::kComma) {
             consume();
-        } else if (peek() == Token::kRCurly) {
+        } else if (peek() == Token::kRParenthese) {
             break;
         } else {
             auto tmp = std::move(parseFunctionParam());
             function_param.push_back(std::move(tmp));
         }
     }
+    // std::cerr << "}\n";
     return std::make_unique<FunctionParameters>(std::move(self_param), std::move(function_param));
 }
 std::unique_ptr<SelfParam> Parser::parseSelfParam() {
@@ -231,10 +241,14 @@ std::unique_ptr<FunctionParam> Parser::parseFunctionParam() {
     return make_unique<FunctionParam>(std::move(pattern_no_top_alt), std::move(type));
 }
 std::unique_ptr<FunctionReturnType> Parser::parseFunctionReturnType() {
-    std::unique_ptr<Type> type;
-    match(Token::kRArrow);
-    type = std::move(parseType());
-    return std::make_unique<FunctionReturnType>(std::move(type));
+    if (peek() == Token::kRArrow) {
+        std::unique_ptr<Type> type;
+        consume();
+        type = std::move(parseType());
+        return std::make_unique<FunctionReturnType>(std::move(type));
+    } else {
+        return nullptr;
+    }
 }
 std::unique_ptr<BlockExpression> Parser::parseBlockExpression() {
     return nullptr;
@@ -253,12 +267,12 @@ std::unique_ptr<StructStruct> Parser::parseStructStruct() {
     if (peek() == Token::kSemi) {
         consume();
     } else {
-        match(Token::kLParenthese);
-        if (peek() == Token::kRParenthese) {
+        match(Token::kLCurly);
+        if (peek() == Token::kRCurly) {
             consume();
         } else {
             struct_fields = std::move(parseStructFields());
-            match(Token::kRParenthese);
+            match(Token::kRCurly);
         }
     }
     return std::make_unique<StructStruct>(std::move(identifier), std::move(struct_fields));
@@ -269,7 +283,7 @@ std::unique_ptr<StructFields> Parser::parseStructFields() {
     while (1) {
         if (peek() == Token::kComma) {
             consume();
-        } else if (peek() == Token::kRParenthese) {
+        } else if (peek() == Token::kRCurly) {
             break;
         } else {
             auto tmp = std::move(parseStructField());
@@ -302,7 +316,7 @@ std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
     while (1) {
         if (peek() == Token::kComma) {
             consume();
-        } else if (peek() == Token::kRParenthese) {
+        } else if (peek() == Token::kRCurly) {
             break;
         } else {
             auto tmp = std::move(parseEnumVariant());
@@ -342,9 +356,9 @@ std::unique_ptr<InherentImpl> Parser::parseInherentImpl() {
     std::unique_ptr<Type> type;
     std::vector<std::unique_ptr<AssociatedItem>> associated_item;
     type = std::move(parseType());
-    match(Token::kLParenthese);
+    match(Token::kRCurly);
     while (1) {
-        if (peek() == Token::kRParenthese) {
+        if (peek() == Token::kRCurly) {
             consume();
             break;
         } else {
@@ -366,9 +380,9 @@ std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
     }
     match(Token::kFor);
     type = std::move(parseType());
-    match(Token::kLParenthese);
+    match(Token::kLCurly);
     while (1) {
-        if (peek() == Token::kRParenthese) {
+        if (peek() == Token::kRCurly) {
             consume();
             break;
         } else {
