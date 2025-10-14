@@ -19,51 +19,51 @@ void Parser::match(Token token) {
     }
 }
 
-std::unique_ptr<Crate> Parser::parseCrate() {
+std::shared_ptr<Crate> Parser::parseCrate() {
     // std::cerr << "Crate: {\n";
-    std::vector<std::unique_ptr<Item>> items;
+    std::vector<std::shared_ptr<Item>> items;
     while (1) {
         auto curItem = parseItem();
         if (curItem == nullptr) break;
         items.push_back(std::move(curItem));
     }
     // std::cerr << "}\n";
-    return std::make_unique<Crate>(std::move(items));
+    return std::make_shared<Crate>(std::move(items));
 }
 
-std::unique_ptr<Item> Parser::parseItem() {
+std::shared_ptr<Item> Parser::parseItem() {
     // std::cerr << "Item: {\n";
     // std::cerr << (int)peek() << std::endl;
     if (peek() == Token::kEOF) {
         return nullptr;
     } else if (peek() == Token::kFn) {
-        return std::make_unique<Item>(std::move(parseFunction()));
+        return std::make_shared<Item>(std::move(parseFunction()));
     } else if (peek() == Token::kStruct) {
-        return std::make_unique<Item>(std::move(parseStruct()));
+        return std::make_shared<Item>(std::move(parseStruct()));
     } else if (peek() == Token::kEnum) {
-        return std::make_unique<Item>(std::move(parseEnumeration()));
+        return std::make_shared<Item>(std::move(parseEnumeration()));
     } else if (peek() == Token::kConst) {
         if (pos < tokens.size() && tokens[pos + 1].first == Token::kFn) {
-            return std::make_unique<Item>(std::move(parseFunction()));
+            return std::make_shared<Item>(std::move(parseFunction()));
         } else {
-            return std::make_unique<Item>(std::move(parseConstantItem()));
+            return std::make_shared<Item>(std::move(parseConstantItem()));
         }
     } else if (peek() == Token::kTrait) {
-        return std::make_unique<Item>(std::move(parseTrait()));
+        return std::make_shared<Item>(std::move(parseTrait()));
     } else if (peek() == Token::kImpl) {
-        return std::make_unique<Item>(std::move(parseImplementation()));
+        return std::make_shared<Item>(std::move(parseImplementation()));
     } else {
         throw std::runtime_error("parse failed!");
     }
     // std::cerr << "}\n";
 }
-std::unique_ptr<Function> Parser::parseFunction() {
+std::shared_ptr<Function> Parser::parseFunction() {
     // std::cerr << "Function: {\n";
     bool is_const = false;
     std::string identifier;
-    std::unique_ptr<FunctionParameters> function_parameters = nullptr;
-    std::unique_ptr<FunctionReturnType> function_return_type = nullptr;
-    std::unique_ptr<BlockExpression> block_expression = nullptr;
+    std::shared_ptr<FunctionParameters> function_parameters = nullptr;
+    std::shared_ptr<FunctionReturnType> function_return_type = nullptr;
+    std::shared_ptr<BlockExpression> block_expression = nullptr;
     if (peek() == Token::kConst) {
         consume();
         is_const = true;
@@ -91,18 +91,18 @@ std::unique_ptr<Function> Parser::parseFunction() {
         block_expression = std::move(parseBlockExpression());
     }
     // std::cerr << "}\n";
-    return std::make_unique<Function>(is_const, 
+    return std::make_shared<Function>(is_const, 
         std::move(identifier), 
         std::move(function_parameters), 
         std::move(function_return_type), 
         std::move(block_expression));
 }
-std::unique_ptr<Struct> Parser::parseStruct() {
-    return std::make_unique<Struct>(std::move(parseStructStruct()));
+std::shared_ptr<Struct> Parser::parseStruct() {
+    return std::make_shared<Struct>(std::move(parseStructStruct()));
 }
-std::unique_ptr<Enumeration> Parser::parseEnumeration() {
+std::shared_ptr<Enumeration> Parser::parseEnumeration() {
     std::string identifier;
-    std::unique_ptr<EnumVariants> enum_variants;
+    std::shared_ptr<EnumVariants> enum_variants;
     match(Token::kEnum);
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
@@ -117,12 +117,12 @@ std::unique_ptr<Enumeration> Parser::parseEnumeration() {
         enum_variants = std::move(parseEnumVariants());
         match(Token::kRCurly);
     }
-    return std::make_unique<Enumeration>(std::move(identifier), std::move(enum_variants));
+    return std::make_shared<Enumeration>(std::move(identifier), std::move(enum_variants));
 }
-std::unique_ptr<ConstantItem> Parser::parseConstantItem() {
+std::shared_ptr<ConstantItem> Parser::parseConstantItem() {
     std::string identifier;
-    std::unique_ptr<Type> type;
-    std::unique_ptr<Expression> expression;
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Expression> expression;
     match(Token::kConst);
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
@@ -137,11 +137,11 @@ std::unique_ptr<ConstantItem> Parser::parseConstantItem() {
         expression = std::move(parseExpression());
     }
     match(Token::kSemi);
-    return std::make_unique<ConstantItem>(std::move(identifier), std::move(type), std::move(expression));
+    return std::make_shared<ConstantItem>(std::move(identifier), std::move(type), std::move(expression));
 }
-std::unique_ptr<Trait> Parser::parseTrait() {
+std::shared_ptr<Trait> Parser::parseTrait() {
     std::string identifier;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
     match(Token::kTrait);
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
@@ -159,23 +159,23 @@ std::unique_ptr<Trait> Parser::parseTrait() {
             associated_item.push_back(std::move(tmp));
         }
     }
-    return std::make_unique<Trait>(std::move(identifier), std::move(associated_item));
+    return std::make_shared<Trait>(std::move(identifier), std::move(associated_item));
 }
-std::unique_ptr<Implementation> Parser::parseImplementation() {
+std::shared_ptr<Implementation> Parser::parseImplementation() {
     match(Token::kImpl);
     if (peek() == Token::kType) {
-        return std::make_unique<Implementation>(std::move(parseInherentImpl()));
+        return std::make_shared<Implementation>(std::move(parseInherentImpl()));
     } else if (peek() == Token::kIdentifier) {
-        return std::make_unique<Implementation>(std::move(parseTraitImpl()));
+        return std::make_shared<Implementation>(std::move(parseTraitImpl()));
     } else {
         throw std::runtime_error("parse failed!");
     }
 }
-std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
+std::shared_ptr<FunctionParameters> Parser::parseFunctionParameters() {
     // std::cerr << "FunctionParameters: {";
     bool has_self = false;
-    std::unique_ptr<SelfParam> self_param = nullptr;
-    std::vector<std::unique_ptr<FunctionParam>> function_param;
+    std::shared_ptr<SelfParam> self_param = nullptr;
+    std::vector<std::shared_ptr<FunctionParam>> function_param;
     size_t tmp = pos;
     for (size_t _ = 0; _ < 3; ++_) {
         if (peek() != Token::kSelf) consume();
@@ -196,21 +196,21 @@ std::unique_ptr<FunctionParameters> Parser::parseFunctionParameters() {
         }
     }
     // std::cerr << "}\n";
-    return std::make_unique<FunctionParameters>(std::move(self_param), std::move(function_param));
+    return std::make_shared<FunctionParameters>(std::move(self_param), std::move(function_param));
 }
-std::unique_ptr<SelfParam> Parser::parseSelfParam() {
+std::shared_ptr<SelfParam> Parser::parseSelfParam() {
     size_t tmp = pos;
     while (peek() != Token::kSelf) consume();
     consume();
     if (peek() == Token::kColon) {
         pos = tmp;
-        return std::make_unique<SelfParam>(std::move(parseTypedSelf()));
+        return std::make_shared<SelfParam>(std::move(parseTypedSelf()));
     } else {
         pos = tmp;
-        return std::make_unique<SelfParam>(std::move(parseShorthandSelf()));
+        return std::make_shared<SelfParam>(std::move(parseShorthandSelf()));
     }
 }
-std::unique_ptr<ShorthandSelf> Parser::parseShorthandSelf() {
+std::shared_ptr<ShorthandSelf> Parser::parseShorthandSelf() {
     bool is_reference = false, is_mutable = false;
     if (peek() == Token::kAnd) {
         is_reference = true;
@@ -221,11 +221,11 @@ std::unique_ptr<ShorthandSelf> Parser::parseShorthandSelf() {
         consume();
     }
     match(Token::kSelf);
-    return std::make_unique<ShorthandSelf>(is_reference, is_mutable);
+    return std::make_shared<ShorthandSelf>(is_reference, is_mutable);
 }
-std::unique_ptr<TypedSelf> Parser::parseTypedSelf() {
+std::shared_ptr<TypedSelf> Parser::parseTypedSelf() {
     bool is_mutable = false;
-    std::unique_ptr<Type> type = nullptr;
+    std::shared_ptr<Type> type = nullptr;
     if (peek() == Token::kMut) {
         is_mutable = true;
         consume();
@@ -233,29 +233,29 @@ std::unique_ptr<TypedSelf> Parser::parseTypedSelf() {
     match(Token::kSelf);
     match(Token::kColon);
     type = std::move(parseType());
-    return std::make_unique<TypedSelf>(is_mutable, std::move(type));
+    return std::make_shared<TypedSelf>(is_mutable, std::move(type));
 }
-std::unique_ptr<FunctionParam> Parser::parseFunctionParam() {
-    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
-    std::unique_ptr<Type> type;
+std::shared_ptr<FunctionParam> Parser::parseFunctionParam() {
+    std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::shared_ptr<Type> type;
     pattern_no_top_alt = std::move(parsePatternNoTopAlt());
     match(Token::kColon);
     type = std::move(parseType());
-    return make_unique<FunctionParam>(std::move(pattern_no_top_alt), std::move(type));
+    return make_shared<FunctionParam>(std::move(pattern_no_top_alt), std::move(type));
 }
-std::unique_ptr<FunctionReturnType> Parser::parseFunctionReturnType() {
+std::shared_ptr<FunctionReturnType> Parser::parseFunctionReturnType() {
     if (peek() == Token::kRArrow) {
-        std::unique_ptr<Type> type;
+        std::shared_ptr<Type> type;
         consume();
         type = std::move(parseType());
-        return std::make_unique<FunctionReturnType>(std::move(type));
+        return std::make_shared<FunctionReturnType>(std::move(type));
     } else {
         return nullptr;
     }
 }
-std::unique_ptr<StructStruct> Parser::parseStructStruct() {
+std::shared_ptr<StructStruct> Parser::parseStructStruct() {
     std::string identifier;
-    std::unique_ptr<StructFields> struct_fields = nullptr;
+    std::shared_ptr<StructFields> struct_fields = nullptr;
     match(Token::kStruct);
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
@@ -274,10 +274,10 @@ std::unique_ptr<StructStruct> Parser::parseStructStruct() {
             match(Token::kRCurly);
         }
     }
-    return std::make_unique<StructStruct>(std::move(identifier), std::move(struct_fields));
+    return std::make_shared<StructStruct>(std::move(identifier), std::move(struct_fields));
 }
-std::unique_ptr<StructFields> Parser::parseStructFields() {
-    std::vector<std::unique_ptr<StructField>> struct_field;
+std::shared_ptr<StructFields> Parser::parseStructFields() {
+    std::vector<std::shared_ptr<StructField>> struct_field;
     struct_field.push_back(std::move(parseStructField()));
     while (1) {
         if (peek() == Token::kComma) {
@@ -293,11 +293,11 @@ std::unique_ptr<StructFields> Parser::parseStructFields() {
             }
         }
     }
-    return std::make_unique<StructFields>(std::move(struct_field));
+    return std::make_shared<StructFields>(std::move(struct_field));
 }
-std::unique_ptr<StructField> Parser::parseStructField() {
+std::shared_ptr<StructField> Parser::parseStructField() {
     std::string identifier;
-    std::unique_ptr<Type> type;
+    std::shared_ptr<Type> type;
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
         consume();
@@ -306,10 +306,10 @@ std::unique_ptr<StructField> Parser::parseStructField() {
     }
     match(Token::kColon);
     type = std::move(parseType());
-    return std::make_unique<StructField>(std::move(identifier), std::move(type));
+    return std::make_shared<StructField>(std::move(identifier), std::move(type));
 }
-std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
-    std::vector<std::unique_ptr<EnumVariant>> enum_variant;
+std::shared_ptr<EnumVariants> Parser::parseEnumVariants() {
+    std::vector<std::shared_ptr<EnumVariant>> enum_variant;
     enum_variant.push_back(std::move(parseEnumVariant()));
     while (1) {
         if (peek() == Token::kComma) {
@@ -325,9 +325,9 @@ std::unique_ptr<EnumVariants> Parser::parseEnumVariants() {
             }
         }
     }
-    return std::make_unique<EnumVariants>(std::move(enum_variant));
+    return std::make_shared<EnumVariants>(std::move(enum_variant));
 }
-std::unique_ptr<EnumVariant> Parser::parseEnumVariant() {
+std::shared_ptr<EnumVariant> Parser::parseEnumVariant() {
     std::string identifier;
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
@@ -335,22 +335,22 @@ std::unique_ptr<EnumVariant> Parser::parseEnumVariant() {
     } else {
         throw std::runtime_error("parse failed!");
     }
-    return std::make_unique<EnumVariant>(std::move(identifier));
+    return std::make_shared<EnumVariant>(std::move(identifier));
 }
-std::unique_ptr<AssociatedItem> Parser::parseAssociatedItem() {
+std::shared_ptr<AssociatedItem> Parser::parseAssociatedItem() {
     if (peek() == Token::kConst) {
         if (pos < tokens.size() && tokens[pos + 1].first == Token::kFn) {
-            return std::make_unique<AssociatedItem>(std::move(parseFunction()));
+            return std::make_shared<AssociatedItem>(std::move(parseFunction()));
         } else {
-            return std::make_unique<AssociatedItem>(std::move(parseConstantItem()));
+            return std::make_shared<AssociatedItem>(std::move(parseConstantItem()));
         }
     } else {
-        return std::make_unique<AssociatedItem>(std::move(parseFunction()));
+        return std::make_shared<AssociatedItem>(std::move(parseFunction()));
     }
 }
-std::unique_ptr<InherentImpl> Parser::parseInherentImpl() {
-    std::unique_ptr<Type> type;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+std::shared_ptr<InherentImpl> Parser::parseInherentImpl() {
+    std::shared_ptr<Type> type;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
     type = std::move(parseType());
     match(Token::kRCurly);
     while (1) {
@@ -362,12 +362,12 @@ std::unique_ptr<InherentImpl> Parser::parseInherentImpl() {
             associated_item.push_back(std::move(tmp));
         }
     }
-    return std::make_unique<InherentImpl>(std::move(type), std::move(associated_item));
+    return std::make_shared<InherentImpl>(std::move(type), std::move(associated_item));
 }
-std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
+std::shared_ptr<TraitImpl> Parser::parseTraitImpl() {
     std::string identifier;
-    std::unique_ptr<Type> type;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+    std::shared_ptr<Type> type;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
         consume();
@@ -386,17 +386,17 @@ std::unique_ptr<TraitImpl> Parser::parseTraitImpl() {
             associated_item.push_back(std::move(tmp));
         }
     }
-    return std::make_unique<TraitImpl>(std::move(identifier), std::move(type), std::move(associated_item));
+    return std::make_shared<TraitImpl>(std::move(identifier), std::move(type), std::move(associated_item));
 }
 
-std::unique_ptr<Statement> Parser::parseStatement() {
+std::shared_ptr<Statement> Parser::parseStatement() {
     if (peek() == Token::kSemi) {
         consume();
-        return std::make_unique<Statement>(nullptr);
+        return std::make_shared<Statement>(nullptr);
     } else if (peek() == Token::kLet) {
-        return std::make_unique<Statement>(std::move(parseLetStatement()));
+        return std::make_shared<Statement>(std::move(parseLetStatement()));
     } else {
-        std::unique_ptr<ASTNode> child;
+        std::shared_ptr<ASTNode> child;
         size_t tmp = pos;
         try {
             child = std::move(parseItem());
@@ -404,13 +404,13 @@ std::unique_ptr<Statement> Parser::parseStatement() {
             pos = tmp;
             child = std::move(parseExpressionStatement());
         }
-        return std::make_unique<Statement>(std::move(child));
+        return std::make_shared<Statement>(std::move(child));
     }
 }
-std::unique_ptr<LetStatement> Parser::parseLetStatement() {
-    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
-    std::unique_ptr<Type> type;
-    std::unique_ptr<Expression> expression;
+std::shared_ptr<LetStatement> Parser::parseLetStatement() {
+    std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Expression> expression;
     match(Token::kLet);
     pattern_no_top_alt = parsePatternNoTopAlt();
     match(Token::kColon);
@@ -418,10 +418,10 @@ std::unique_ptr<LetStatement> Parser::parseLetStatement() {
     match(Token::kEq);
     expression = parseExpression();
     match(Token::kSemi);
-    return std::make_unique<LetStatement>(std::move(pattern_no_top_alt), std::move(type), std::move(expression));
+    return std::make_shared<LetStatement>(std::move(pattern_no_top_alt), std::move(type), std::move(expression));
 }
-std::unique_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
-    std::unique_ptr<ASTNode> child;
+std::shared_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
+    std::shared_ptr<ASTNode> child;
     size_t tmp = pos;
     try {
         child = parseExpressionWithBlock();
@@ -431,25 +431,25 @@ std::unique_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
         child = parseExpressionWithoutBlock();
         match(Token::kSemi);
     }
-    return std::make_unique<ExpressionStatement>(std::move(child));
+    return std::make_shared<ExpressionStatement>(std::move(child));
 }
-std::unique_ptr<Expression> Parser::parseExpression() {
+std::shared_ptr<Expression> Parser::parseExpression() {
     return nullptr;
 }
-std::unique_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
+std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
     return nullptr;
 }
-std::unique_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
+std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
     return nullptr;
 }
-std::unique_ptr<BlockExpression> Parser::parseBlockExpression() {
-    return nullptr;
-}
-
-std::unique_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
+std::shared_ptr<BlockExpression> Parser::parseBlockExpression() {
     return nullptr;
 }
 
-std::unique_ptr<Type> Parser::parseType() {
+std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
+    return nullptr;
+}
+
+std::shared_ptr<Type> Parser::parseType() {
     return nullptr;
 }

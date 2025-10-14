@@ -14,9 +14,9 @@ public:
 
 class Crate : public ASTNode {
 private:
-    std::vector<std::unique_ptr<Item>> items;
+    std::vector<std::shared_ptr<Item>> items;
 public:
-    Crate(std::vector<std::unique_ptr<Item>>&& items)
+    Crate(std::vector<std::shared_ptr<Item>>&& items)
         : items(std::move(items)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -25,9 +25,9 @@ public:
 
 class Item : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> item; // Function, Struct, Enumeration, ConstantItem, Trait, Implementation
+    std::shared_ptr<ASTNode> item; // Function, Struct, Enumeration, ConstantItem, Trait, Implementation
 public:
-    Item(std::unique_ptr<ASTNode> item)
+    Item(std::shared_ptr<ASTNode> item)
         : item(std::move(item)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -38,15 +38,15 @@ class Function : public ASTNode {
 private:
     bool is_const;
     std::string identifier;
-    std::unique_ptr<FunctionParameters> function_parameters;
-    std::unique_ptr<FunctionReturnType> function_return_type;
-    std::unique_ptr<BlockExpression> block_expression;
+    std::shared_ptr<FunctionParameters> function_parameters;
+    std::shared_ptr<FunctionReturnType> function_return_type;
+    std::shared_ptr<BlockExpression> block_expression;
 public:
     Function(bool is_const, 
         std::string identifier, 
-        std::unique_ptr<FunctionParameters> function_parameters, 
-        std::unique_ptr<FunctionReturnType> function_return_type, 
-        std::unique_ptr<BlockExpression> block_expression)
+        std::shared_ptr<FunctionParameters> function_parameters, 
+        std::shared_ptr<FunctionReturnType> function_return_type, 
+        std::shared_ptr<BlockExpression> block_expression)
         : is_const(is_const), 
         identifier(std::move(identifier)), 
         function_parameters(std::move(function_parameters)), 
@@ -59,9 +59,9 @@ public:
 
 class Struct : public ASTNode {
 private:
-    std::unique_ptr<StructStruct> struct_struct;
+    std::shared_ptr<StructStruct> struct_struct;
 public:
-    Struct(std::unique_ptr<StructStruct> struct_struct)
+    Struct(std::shared_ptr<StructStruct> struct_struct)
         : struct_struct(std::move(struct_struct)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -71,9 +71,9 @@ public:
 class Enumeration : public ASTNode {
 private:
     std::string identifier;
-    std::unique_ptr<EnumVariants> enum_variants;
+    std::shared_ptr<EnumVariants> enum_variants;
 public:
-    Enumeration(std::string identifier, std::unique_ptr<EnumVariants> enum_variants)
+    Enumeration(std::string identifier, std::shared_ptr<EnumVariants> enum_variants)
         : identifier(std::move(identifier)), enum_variants(std::move(enum_variants)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -83,10 +83,10 @@ public:
 class ConstantItem : public ASTNode {
 private:
     std::string identifier;
-    std::unique_ptr<Type> type;
-    std::unique_ptr<Expression> expression;
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Expression> expression;
 public:
-    ConstantItem(std::string identifier, std::unique_ptr<Type> type, std::unique_ptr<Expression> expression)
+    ConstantItem(std::string identifier, std::shared_ptr<Type> type, std::shared_ptr<Expression> expression)
         : identifier(std::move(identifier)), type(std::move(type)), expression(std::move(expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -96,9 +96,9 @@ public:
 class Trait : public ASTNode {
 private:
     std::string identifier;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
 public:
-    Trait(std::string identifier, std::vector<std::unique_ptr<AssociatedItem>> associated_item)
+    Trait(std::string identifier, std::vector<std::shared_ptr<AssociatedItem>> associated_item)
         : identifier(std::move(identifier)), associated_item(std::move(associated_item)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -107,9 +107,9 @@ public:
 
 class Implementation : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> impl; // InherentImpl, TraitImpl
+    std::shared_ptr<ASTNode> impl; // InherentImpl, TraitImpl
 public:
-    Implementation(std::unique_ptr<ASTNode> impl) : impl(std::move(impl)) {}
+    Implementation(std::shared_ptr<ASTNode> impl) : impl(std::move(impl)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -117,10 +117,10 @@ public:
 
 class FunctionParameters : public ASTNode {
 private:
-    std::unique_ptr<SelfParam> self_param;
-    std::vector<std::unique_ptr<FunctionParam>> function_param;
+    std::shared_ptr<SelfParam> self_param;
+    std::vector<std::shared_ptr<FunctionParam>> function_param;
 public:
-    FunctionParameters(std::unique_ptr<SelfParam> self_param, std::vector<std::unique_ptr<FunctionParam>> function_param)
+    FunctionParameters(std::shared_ptr<SelfParam> self_param, std::vector<std::shared_ptr<FunctionParam>> function_param)
         : self_param(std::move(self_param)), function_param(std::move(function_param)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -129,9 +129,9 @@ public:
 
 class SelfParam : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> child; // ShorthandSelf, TypedSelf
+    std::shared_ptr<ASTNode> child; // ShorthandSelf, TypedSelf
 public:
-    SelfParam(std::unique_ptr<ASTNode> child)
+    SelfParam(std::shared_ptr<ASTNode> child)
         : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -153,9 +153,9 @@ public:
 class TypedSelf : public ASTNode {
 private:
     bool is_mutable;
-    std::unique_ptr<Type> type;
+    std::shared_ptr<Type> type;
 public:
-    TypedSelf(bool is_mutable, std::unique_ptr<Type> type) 
+    TypedSelf(bool is_mutable, std::shared_ptr<Type> type) 
         : is_mutable(is_mutable), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -164,10 +164,10 @@ public:
 
 class FunctionParam : public ASTNode {
 private:
-    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
-    std::unique_ptr<Type> type;
+    std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::shared_ptr<Type> type;
 public:
-    FunctionParam(std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt, std::unique_ptr<Type> type)
+    FunctionParam(std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt, std::shared_ptr<Type> type)
         : pattern_no_top_alt(std::move(pattern_no_top_alt)), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -176,9 +176,9 @@ public:
 
 class FunctionReturnType : public ASTNode {
 private:
-    std::unique_ptr<Type> type;
+    std::shared_ptr<Type> type;
 public:
-    FunctionReturnType(std::unique_ptr<Type> type) 
+    FunctionReturnType(std::shared_ptr<Type> type) 
         : type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -188,9 +188,9 @@ public:
 class StructStruct : public ASTNode {
 private:
     std::string identifier;
-    std::unique_ptr<StructFields> struct_fields;
+    std::shared_ptr<StructFields> struct_fields;
 public:
-    StructStruct(std::string identifier, std::unique_ptr<StructFields> struct_fields)
+    StructStruct(std::string identifier, std::shared_ptr<StructFields> struct_fields)
         : identifier(std::move(identifier)), struct_fields(std::move(struct_fields)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -199,9 +199,9 @@ public:
 
 class StructFields : public ASTNode {
 private:
-    std::vector<std::unique_ptr<StructField>> struct_fields;
+    std::vector<std::shared_ptr<StructField>> struct_fields;
 public:
-    StructFields(std::vector<std::unique_ptr<StructField>> struct_fields)
+    StructFields(std::vector<std::shared_ptr<StructField>> struct_fields)
         : struct_fields(std::move(struct_fields)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -211,9 +211,9 @@ public:
 class StructField : public ASTNode {
 private:
     std::string identifier;
-    std::unique_ptr<Type> type;
+    std::shared_ptr<Type> type;
 public:
-    StructField(std::string identifier, std::unique_ptr<Type> type)
+    StructField(std::string identifier, std::shared_ptr<Type> type)
         : identifier(std::move(identifier)), type(std::move(type)){}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -222,9 +222,9 @@ public:
 
 class EnumVariants : public ASTNode {
 private:
-    std::vector<std::unique_ptr<EnumVariant>> enum_variant;
+    std::vector<std::shared_ptr<EnumVariant>> enum_variant;
 public:
-    EnumVariants(std::vector<std::unique_ptr<EnumVariant>> enum_variant)
+    EnumVariants(std::vector<std::shared_ptr<EnumVariant>> enum_variant)
         : enum_variant(std::move(enum_variant)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -244,9 +244,9 @@ public:
 
 class AssociatedItem : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> child; // ConstantItem, Function
+    std::shared_ptr<ASTNode> child; // ConstantItem, Function
 public:
-    AssociatedItem(std::unique_ptr<ASTNode> child)
+    AssociatedItem(std::shared_ptr<ASTNode> child)
         : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -255,10 +255,10 @@ public:
 
 class InherentImpl : public ASTNode {
 private:
-    std::unique_ptr<Type> type;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+    std::shared_ptr<Type> type;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
 public:
-    InherentImpl(std::unique_ptr<Type> type, std::vector<std::unique_ptr<AssociatedItem>> associated_item)
+    InherentImpl(std::shared_ptr<Type> type, std::vector<std::shared_ptr<AssociatedItem>> associated_item)
         : type(std::move(type)), associated_item(std::move(associated_item)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -267,10 +267,10 @@ public:
 class TraitImpl : public ASTNode {
 private:
     std::string identifier;
-    std::unique_ptr<Type> type;
-    std::vector<std::unique_ptr<AssociatedItem>> associated_item;
+    std::shared_ptr<Type> type;
+    std::vector<std::shared_ptr<AssociatedItem>> associated_item;
 public:
-    TraitImpl(std::string identifier, std::unique_ptr<Type> type, std::vector<std::unique_ptr<AssociatedItem>> associated_item)
+    TraitImpl(std::string identifier, std::shared_ptr<Type> type, std::vector<std::shared_ptr<AssociatedItem>> associated_item)
     : identifier(std::move(identifier)), type(std::move(type)), associated_item(std::move(associated_item)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -279,9 +279,9 @@ public:
 
 class Statement : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> child; // nullptr(,), Item, LetStatement, ExpressionStatement
+    std::shared_ptr<ASTNode> child; // nullptr(,), Item, LetStatement, ExpressionStatement
 public:
-    Statement(std::unique_ptr<ASTNode> child)
+    Statement(std::shared_ptr<ASTNode> child)
         : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -290,13 +290,13 @@ public:
 
 class LetStatement : public ASTNode {
 private:
-    std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt;
-    std::unique_ptr<Type> type;
-    std::unique_ptr<Expression> expression;
+    std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Expression> expression;
 public:
-    LetStatement(std::unique_ptr<PatternNoTopAlt> pattern_no_top_alt, 
-        std::unique_ptr<Type> type, 
-        std::unique_ptr<Expression> expression)
+    LetStatement(std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt, 
+        std::shared_ptr<Type> type, 
+        std::shared_ptr<Expression> expression)
         : pattern_no_top_alt(std::move(pattern_no_top_alt)),
         type(std::move(type)),
         expression(std::move(expression))  {}
@@ -307,9 +307,9 @@ public:
 
 class ExpressionStatement : public ASTNode {
 private:
-    std::unique_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
+    std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
 public:
-    ExpressionStatement(std::unique_ptr<ASTNode> child)
+    ExpressionStatement(std::shared_ptr<ASTNode> child)
         : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
