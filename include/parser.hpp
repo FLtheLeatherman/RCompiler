@@ -52,4 +52,7 @@ public:
     std::shared_ptr<PatternNoTopAlt> parsePatternNoTopAlt();
 
     std::shared_ptr<Type> parseType();
+
+    std::shared_ptr<PathInExpression> parsePathInExpression();
+    std::shared_ptr<PathIdentSegment> parsePathIdentSegment();
 };

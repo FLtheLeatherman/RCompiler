@@ -434,7 +434,15 @@ std::shared_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
     return std::make_shared<ExpressionStatement>(std::move(child));
 }
 std::shared_ptr<Expression> Parser::parseExpression() {
-    return nullptr;
+    std::shared_ptr<ASTNode> child;
+    size_t tmp = pos;
+    try {
+        child = parseExpressionWithBlock();
+    } catch (...) {
+        pos = tmp;
+        child = parseExpressionWithoutBlock();
+    }
+    return std::make_shared<Expression>(std::move(child));
 }
 std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
     return nullptr;
@@ -452,4 +460,38 @@ std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
 
 std::shared_ptr<Type> Parser::parseType() {
     return nullptr;
+}
+
+std::shared_ptr<PathInExpression> Parser::parsePathInExpression() {
+    std::shared_ptr<PathIdentSegment> segment1, segment2;
+    segment1 = std::move(parsePathIdentSegment());
+    size_t tmp = pos;
+    int cnt = 0;
+    for (size_t _ = 0; _ < 2; ++_) {
+        if (peek() == Token::kColon) {
+            consume();
+            cnt++;
+        }
+    }
+    if (cnt == 2) {
+        segment2 = std::move(parsePathIdentSegment());
+    } else {
+        segment2 = nullptr;
+        pos = tmp;
+    }
+    return std::make_shared<PathInExpression>(std::move(segment1), std::move(segment2));
+}
+
+std::shared_ptr<PathIdentSegment> Parser::parsePathIdentSegment() {
+    if (peek() == Token::kIdentifier) {
+        std::string identifier = get_string();
+        consume();
+        return std::make_shared<PathIdentSegment>(0, std::move(identifier));
+    } else if (peek() == Token::kSelf) {
+        return std::make_shared<PathIdentSegment>(1, "");
+    } else if (peek() == Token::kSelf) {
+        return std::make_shared<PathIdentSegment>(2, "");
+    } else {
+        throw std::runtime_error("parse failed!");
+    }
 }

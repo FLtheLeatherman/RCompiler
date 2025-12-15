@@ -317,29 +317,144 @@ public:
 };
 
 class Expression : public ASTNode {
+private:
+    std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
 public:
-    Expression() {}
+    Expression(std::shared_ptr<ASTNode> child)
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class ExpressionWithoutBlock : public ASTNode {
+private:
+    std::shared_ptr<ASTNode> child; 
+    // LiteralExpression, PathExpression, OperatorExpression, GroupedExpression,
+    // ArrayExpression, IndexExpression, StructExpression, CallExpression,
+    // MethodCallExpression, FieldExpression, ContinueExpression, BreakExpression, ReturnExpression.
 public:
-    ExpressionWithoutBlock() {}
+    ExpressionWithoutBlock(std::shared_ptr<ASTNode> child)
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class ExpressionWithBlock : public ASTNode {
+private:
+    std::shared_ptr<ASTNode> child;
 public:
-    ExpressionWithBlock() {}
+    ExpressionWithBlock(std::shared_ptr<ASTNode> child)
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
+class LiteralExpression : public ASTNode {
+public:
+    LiteralExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class PathExpression : public ASTNode {
+public:
+    PathExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class OperatorExpression : public ASTNode {
+public:
+    OperatorExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class GroupedExpression : public ASTNode {
+public:
+    GroupedExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ArrayExpression : public ASTNode {
+public:
+    ArrayExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class IndexExpression : public ASTNode {
+public:
+    IndexExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class StructExpression : public ASTNode {
+public:
+    StructExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class CallExpression : public ASTNode {
+public:
+    CallExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class MethodCallExpression : public ASTNode {
+public:
+    MethodCallExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class FieldExpression : public ASTNode {
+public:
+    FieldExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ContinueExpression : public ASTNode {
+public:
+    ContinueExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class BreakExpression : public ASTNode {
+public:
+    BreakExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ReturnExpression : public ASTNode {
+public:
+    ReturnExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
 
 class BlockExpression : public ASTNode {
 public:
@@ -348,6 +463,23 @@ public:
         visitor->visit(*this);
     }
 };
+
+class LoopExpression : public ASTNode {
+public:
+    LoopExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class IfExpression : public ASTNode {
+public:
+    IfExpression() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
 class PatternNoTopAlt : public ASTNode {
 public:
     PatternNoTopAlt() {}
@@ -357,8 +489,56 @@ public:
 };
 
 class Type : public ASTNode {
+private:
+    std::shared_ptr<ASTNode> child; // TypePath (PathIdentSegment), ReferenceType, ArrayType, UnitType
 public:
-    Type() {}
+    Type(std::shared_ptr<ASTNode> child)
+        : child(std::move(child)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ReferenceType : public ASTNode {
+public:
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ArrayType : public ASTNode {
+public:
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class UnitType : public ASTNode {
+public:
+    UnitType() {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class PathInExpression : public ASTNode {
+private:
+    std::shared_ptr<PathIdentSegment> segment1, segment2;
+public:
+    PathInExpression(std::shared_ptr<PathIdentSegment> segment1, std::shared_ptr<PathIdentSegment> segment2)
+        : segment1(std::move(segment1)), segment2(segment2) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class PathIdentSegment: public ASTNode {
+private:
+    int type; // 0 for identifier, 1 for Self, 2 for self
+    std::string identifier;
+public:
+    PathIdentSegment(int type, std::string identifier)
+        : type(type), identifier(std::move(identifier)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
