@@ -9,17 +9,17 @@
 - [x] 为 Pratt parsing 做准备，删除了 `LiteralExpression` 组合类
 
 #### 1.1 基础表达式类型
-- [ ] 实现 `PathExpression` 解析
+- [x] 实现 `PathExpression` 解析
 - [ ] 实现 `OperatorExpression` 解析（包括运算符优先级）
-- [ ] 实现 `GroupedExpression` 解析（括号表达式）
+- [x] 实现 `GroupedExpression` 解析（括号表达式）
 
 #### 1.2 复合表达式类型
-- [ ] 实现 `ArrayExpression` 解析
-- [ ] 实现 `IndexExpression` 解析
-- [ ] 实现 `StructExpression` 解析
-- [ ] 实现 `CallExpression` 解析
-- [ ] 实现 `MethodCallExpression` 解析
-- [ ] 实现 `FieldExpression` 解析
+- [x] 实现 `ArrayExpression` 解析
+- [x] 实现 `IndexExpression` 解析
+- [x] 实现 `StructExpression` 解析
+- [x] 实现 `CallExpression` 解析
+- [x] 实现 `MethodCallExpression` 解析
+- [x] 实现 `FieldExpression` 解析
 
 #### 1.3 控制流表达式
 - [x] 实现 `ContinueExpression` 解析
@@ -170,3 +170,26 @@
 - 实现了 `parseStatements()` 函数，按照要求先尝试 parseStatement，失败时尝试 parseExpressionWithoutBlock
 - 实现了 `parseBlockExpression()` 函数，支持 `{ Statements? }` 语法
 - 集成到 `parseExpressionWithBlock()` 中，完善了有块表达式的解析能力
+
+### GroupedExpression、ArrayExpression、IndexExpression、StructExpression 和 CallExpression 系统
+- 实现了 `GroupedExpression` 类，继承自 Expression，包含一个 Expression 成员变量，支持 `( Expression )` 语法
+- 实现了 `ArrayExpression` 类，继承自 Expression，包含 ArrayElements 成员变量，支持 `[ ArrayElements? ]` 语法
+- 实现了 `ArrayElements` 类，继承自 ASTNode，包含表达式向量和分隔类型标志，支持两种语法：
+  - `Expression ( , Expression )* ,?`（逗号分隔）
+  - `Expression ; Expression`（分号分隔）
+- 实现了 `IndexExpression` 类，继承自 Expression，包含基础表达式和索引表达式两个成员变量，支持 `Expression [ Expression ]` 语法
+- 实现了 `StructExpression` 类，继承自 Expression，包含 PathInExpression 和 StructExprFields 成员变量，支持 `PathInExpression { StructExprFields? }` 语法
+- 实现了 `StructExprFields` 类，继承自 ASTNode，包含 StructExprField 向量，支持 `StructExprField ( , StructExprField )* ,?` 语法
+- 实现了 `StructExprField` 类，继承自 ASTNode，包含标识符和表达式，支持 `IDENTIFIER : Expression` 语法
+- 实现了 `CallExpression` 类，继承自 Expression，包含表达式和 CallParams 成员变量，支持 `Expression ( CallParams? )` 语法
+- 实现了 `CallParams` 类，继承自 ASTNode，包含表达式向量，支持 `Expression ( , Expression )* ,?` 语法
+- 实现了 `parseGroupedExpression()` 函数，解析括号表达式
+- 实现了 `parseArrayExpression()` 函数，解析数组表达式
+- 实现了 `parseArrayElements()` 函数，解析数组元素列表
+- 实现了 `parseIndexExpression()` 函数，解析索引表达式
+- 实现了 `parseStructExpression()` 函数，解析结构体表达式
+- 实现了 `parseStructExprFields()` 函数，解析结构体字段列表
+- 实现了 `parseStructExprField()` 函数，解析结构体字段
+- 实现了 `parseCallExpression()` 函数，解析函数调用表达式
+- 实现了 `parseCallParams()` 函数，解析函数调用参数列表
+- 这些表达式已准备好集成到未来的 Pratt parsing 系统中

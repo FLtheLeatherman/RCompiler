@@ -49,7 +49,12 @@ class PathExpression;
 class OperatorExpression;
 class GroupedExpression;
 class ArrayExpression;
+class ArrayElements;
 class IndexExpression;
+class StructExpression;
+class StructExprFields;
+class StructExprField;
+class CallParams;
 class StructExpression;
 class CallExpression;
 class MethodCallExpression;
@@ -61,6 +66,7 @@ class BlockExpression;
 class LoopExression;
 class IfExpression;
 class Condition;
+class Statements;
 /****Statements & expressions****/
 
 /****Patterns****/

@@ -436,8 +436,11 @@ public:
 };
 
 class PathExpression : public Expression {
+private:
+    std::shared_ptr<PathInExpression> path_in_expression;
 public:
-    PathExpression() {}
+    PathExpression(std::shared_ptr<PathInExpression> path_in_expression)
+        : path_in_expression(std::move(path_in_expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -452,56 +455,83 @@ public:
 };
 
 class GroupedExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
 public:
-    GroupedExpression() {}
+    GroupedExpression(std::shared_ptr<Expression> expression)
+        : expression(std::move(expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class ArrayExpression : public Expression {
+private:
+    std::shared_ptr<ArrayElements> array_elements;
 public:
-    ArrayExpression() {}
+    ArrayExpression(std::shared_ptr<ArrayElements> array_elements)
+        : array_elements(std::move(array_elements)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class IndexExpression : public Expression {
+private:
+    std::shared_ptr<Expression> base_expression;
+    std::shared_ptr<Expression> index_expression;
 public:
-    IndexExpression() {}
+    IndexExpression(std::shared_ptr<Expression> base_expression, std::shared_ptr<Expression> index_expression)
+        : base_expression(std::move(base_expression)), index_expression(std::move(index_expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class StructExpression : public Expression {
+private:
+    std::shared_ptr<PathInExpression> path_in_expression;
+    std::shared_ptr<StructExprFields> struct_expr_fields;
 public:
-    StructExpression() {}
+    StructExpression(std::shared_ptr<PathInExpression> path_in_expression, std::shared_ptr<StructExprFields> struct_expr_fields)
+        : path_in_expression(std::move(path_in_expression)), struct_expr_fields(std::move(struct_expr_fields)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class CallExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
+    std::shared_ptr<CallParams> call_params;
 public:
-    CallExpression() {}
+    CallExpression(std::shared_ptr<Expression> expression, std::shared_ptr<CallParams> call_params)
+        : expression(std::move(expression)), call_params(std::move(call_params)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class MethodCallExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
+    std::shared_ptr<PathIdentSegment> path_ident_segment;
+    std::shared_ptr<CallParams> call_params;
 public:
-    MethodCallExpression() {}
+    MethodCallExpression(std::shared_ptr<Expression> expression, std::shared_ptr<PathIdentSegment> path_ident_segment, std::shared_ptr<CallParams> call_params)
+        : expression(std::move(expression)), path_ident_segment(std::move(path_ident_segment)), call_params(std::move(call_params)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class FieldExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
+    std::string identifier;
 public:
-    FieldExpression() {}
+    FieldExpression(std::shared_ptr<Expression> expression, std::string identifier)
+        : expression(std::move(expression)), identifier(std::move(identifier)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -538,8 +568,11 @@ public:
 };
 
 class BlockExpression : public Expression {
+private:
+    std::shared_ptr<Statements> statements;
 public:
-    BlockExpression() {}
+    BlockExpression(std::shared_ptr<Statements> statements)
+        : statements(std::move(statements)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -658,6 +691,53 @@ public:
         visitor->visit(*this);
     }
 };
+
+class ArrayElements : public ASTNode {
+private:
+    std::vector<std::shared_ptr<Expression>> expressions;
+    bool is_semicolon_separated; // true for semicolon separated, false for comma separated
+public:
+    ArrayElements(std::vector<std::shared_ptr<Expression>> expressions, bool is_semicolon_separated)
+        : expressions(std::move(expressions)), is_semicolon_separated(is_semicolon_separated) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class StructExprFields : public ASTNode {
+private:
+    std::vector<std::shared_ptr<StructExprField>> struct_expr_fields;
+public:
+    StructExprFields(std::vector<std::shared_ptr<StructExprField>> struct_expr_fields)
+        : struct_expr_fields(std::move(struct_expr_fields)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class StructExprField : public ASTNode {
+private:
+    std::string identifier;
+    std::shared_ptr<Expression> expression;
+public:
+    StructExprField(std::string identifier, std::shared_ptr<Expression> expression)
+        : identifier(std::move(identifier)), expression(std::move(expression)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class CallParams : public ASTNode {
+private:
+    std::vector<std::shared_ptr<Expression>> expressions;
+public:
+    CallParams(std::vector<std::shared_ptr<Expression>> expressions)
+        : expressions(std::move(expressions)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
 
 class PathIdentSegment: public ASTNode {
 private:

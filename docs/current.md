@@ -63,15 +63,15 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
 - `RawCStringLiteral`: 原始 C 字符串字面量，包含字符串值（继承 Expression）
 - `IntegerLiteral`: 整数字面量，包含字符串值（继承 Expression）
 - `BoolLiteral`: 布尔字面量，包含布尔值（继承 Expression）
-- `PathExpression`: 路径表达式（未实现）
+- `PathExpression`: 路径表达式（已实现）
 - `OperatorExpression`: 操作符表达式（未实现）
-- `GroupedExpression`: 分组表达式（未实现）
-- `ArrayExpression`: 数组表达式（未实现）
-- `IndexExpression`: 索引表达式（未实现）
-- `StructExpression`: 结构体表达式（未实现）
-- `CallExpression`: 函数调用表达式（未实现）
-- `MethodCallExpression`: 方法调用表达式（未实现）
-- `FieldExpression`: 字段访问表达式（未实现）
+- `GroupedExpression`: 分组表达式（已实现，包含 Expression 成员变量）
+- `ArrayExpression`: 数组表达式（已实现，包含 ArrayElements 成员变量）
+- `IndexExpression`: 索引表达式（已实现）
+- `StructExpression`: 结构体表达式（已实现）
+- `CallExpression`: 函数调用表达式（已实现）
+- `MethodCallExpression`: 方法调用表达式（已实现）
+- `FieldExpression`: 字段访问表达式（已实现）
 - `ContinueExpression`: continue 表达式（未实现）
 - `BreakExpression`: break 表达式（未实现）
 - `ReturnExpression`: return 表达式，包含可选的表达式子节点
@@ -81,6 +81,18 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
 - `PredicateLoopExpression`: 条件循环表达式，包含条件和 BlockExpression（已实现）
 - `Condition`: 条件表达式，包含表达式（不能是 StructExpression）
 - `IfExpression`: if 表达式，包含条件、then 块和可选的 else 分支
+
+#### 数组和分组相关节点
+- `ArrayElements`: 数组元素列表，包含表达式向量和分隔类型标志（逗号或分号分隔）
+
+#### 结构体表达式相关节点
+- `StructExprFields`: 结构体字段列表，包含 StructExprField 向量
+- `StructExprField`: 结构体字段，包含标识符和表达式
+
+#### 函数调用相关节点
+- `CallParams`: 函数调用参数列表，包含表达式向量
+
+#### 路径和字段访问相关节点
 
 #### 类型和模式节点
 - `PatternNoTopAlt`: 模式（未实现）
@@ -153,6 +165,20 @@ Parser 类已定义完整的解析函数接口：
 - `parsePatternNoTopAlt()`: 解析模式（仅返回 nullptr）
 - `parseType()`: 解析类型（仅返回 nullptr）
 
+#### 新增实现的解析函数
+- `parseGroupedExpression()`: 解析分组表达式（支持 `( Expression )` 语法）
+- `parseArrayExpression()`: 解析数组表达式（支持 `[ ArrayElements? ]` 语法）
+- `parseArrayElements()`: 解析数组元素（支持 `Expression ( , Expression )* ,?` 和 `Expression ; Expression` 语法）
+- `parseIndexExpression()`: 解析索引表达式（支持 `Expression [ Expression ]` 语法）
+- `parseStructExpression()`: 解析结构体表达式（支持 `PathInExpression { StructExprFields? }` 语法）
+- `parseStructExprFields()`: 解析结构体字段列表（支持 `StructExprField ( , StructExprField )* ,?` 语法）
+- `parseStructExprField()`: 解析结构体字段（支持 `IDENTIFIER : Expression` 语法）
+- `parseCallExpression()`: 解析函数调用表达式（支持 `Expression ( CallParams? )` 语法）
+- `parseCallParams()`: 解析函数调用参数（支持 `Expression ( , Expression )* ,?` 语法）
+- `parseMethodCallExpression()`: 解析方法调用表达式（支持 `Expression . PathIdentSegment ( CallParams? )` 语法）
+- `parseFieldExpression()`: 解析字段访问表达式（支持 `Expression . IDENTIFIER` 语法）
+- `parsePathExpression()`: 解析路径表达式（支持 `PathInExpression` 语法）
+
 ### 4. 语法分析器实现（src/parser.cpp）
 已实现大部分解析功能：
 
@@ -188,10 +214,10 @@ Parser 类已定义完整的解析函数接口：
 - 支持 C++17 标准
 
 ## 下一步工作
-1. 完成表达式解析功能
-2. 完成类型解析功能
-3. 完成模式解析功能
-4. 完成块表达式解析功能
+1. 将 GroupedExpression 和 ArrayExpression 集成到 ExpressionWithoutBlock 的 Pratt parsing 系统中
+2. 完成其他表达式解析功能（PathExpression、OperatorExpression 等）
+3. 完成类型解析功能
+4. 完成模式解析功能
 5. 实现访问者模式的具体访问者类
 6. 添加更多错误处理和恢复机制
 7. 编写测试用例验证解析器功能

@@ -73,4 +73,24 @@ public:
     std::shared_ptr<PredicateLoopExpression> parsePredicateLoopExpression();
     std::shared_ptr<BreakExpression> parseBreakExpression();
     std::shared_ptr<ContinueExpression> parseContinueExpression();
+    
+    // Array and grouped expressions
+    std::shared_ptr<GroupedExpression> parseGroupedExpression();
+    std::shared_ptr<ArrayExpression> parseArrayExpression();
+    std::shared_ptr<ArrayElements> parseArrayElements();
+    std::shared_ptr<IndexExpression> parseIndexExpression();
+    
+    // Struct expressions
+    std::shared_ptr<StructExpression> parseStructExpression();
+    std::shared_ptr<StructExprFields> parseStructExprFields();
+    std::shared_ptr<StructExprField> parseStructExprField();
+    
+    // Call expressions
+    std::shared_ptr<CallExpression> parseCallExpression();
+    std::shared_ptr<CallParams> parseCallParams();
+    
+    // Method call, field, and path expressions
+    std::shared_ptr<MethodCallExpression> parseMethodCallExpression();
+    std::shared_ptr<FieldExpression> parseFieldExpression();
+    std::shared_ptr<PathExpression> parsePathExpression();
 };

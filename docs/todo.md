@@ -1,3 +1,18 @@
-你的 parseStatements 逻辑似乎有一些问题。ExpressionWithoutBlock 只会出现至多一个，所以你应当在 while 循环结束之后再尝试 parseExpressionWithoutBlock. 修改它。
+接下来实现 MethodCallExpression：
+
+MethodCallExpression → Expression `.` PathExprSegment `(` CallParams? `)`
+
+你需要新建从 ASTNode 继承来的 PathExprSegment 类，但是暂时不需要具体实现。
+
+其次是 FieldExpression：
+
+FieldExpression → Expression . IDENTIFIER
+
+以及 PathExpression：
+
+PathExpression →
+      PathInExpression
+
+先在 astnode.hpp 中实现尚未实现的类型，注意区分是从 ASTNode 继承还是从 Expression 继承，然后到 parser 模块进行声明和实现。
 
 开始任务前，请阅读 docs/rule.md.

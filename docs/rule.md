@@ -1,4 +1,4 @@
-可以使用 parser 中的 peek() 函数判断下一个 token 的类型，具体类型对应可以参考 lexer.hpp 中的内容，例如，`return` 对应着 Token::kReturn.
+可以使用 parser 中的 peek() 函数判断下一个 token 的类型，具体类型对应 应当阅读 lexer.hpp 中的内容以获取准确名称，例如，`return` 对应着 Token::kReturn.
 
 parser 最后生成的 AST 树是一个树状结构，每个节点（除 Expression 相关外）的类型都应该是**直接**从 ASTNode 基类派生而来，包含构造函数和继承的 visit 函数；
 

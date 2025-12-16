@@ -739,3 +739,217 @@ std::shared_ptr<ContinueExpression> Parser::parseContinueExpression() {
     match(Token::kContinue);
     return std::make_shared<ContinueExpression>();
 }
+
+// Array and grouped expressions
+std::shared_ptr<GroupedExpression> Parser::parseGroupedExpression() {
+    std::shared_ptr<Expression> expression;
+    
+    match(Token::kLParenthese);
+    expression = std::move(parseExpression());
+    match(Token::kRParenthese);
+    
+    return std::make_shared<GroupedExpression>(std::move(expression));
+}
+
+std::shared_ptr<ArrayExpression> Parser::parseArrayExpression() {
+    std::shared_ptr<ArrayElements> array_elements = nullptr;
+    
+    match(Token::kLSquare);
+    
+    // Check if there are elements inside the array
+    if (peek() != Token::kRSquare) {
+        array_elements = std::move(parseArrayElements());
+    }
+    
+    match(Token::kRSquare);
+    
+    return std::make_shared<ArrayExpression>(std::move(array_elements));
+}
+
+std::shared_ptr<ArrayElements> Parser::parseArrayElements() {
+    std::vector<std::shared_ptr<Expression>> expressions;
+    
+    // Parse first expression
+    expressions.push_back(std::move(parseExpression()));
+    
+    // Check if this is semicolon separated or comma separated
+    if (peek() == Token::kSemi) {
+        // Semicolon separated: Expression ; Expression
+        match(Token::kSemi);
+        expressions.push_back(std::move(parseExpression()));
+        
+        // Optional trailing comma
+        // if (peek() == Token::kComma) {
+        //     consume();
+        // }
+        
+        return std::make_shared<ArrayElements>(std::move(expressions), true);
+    } else {
+        // Comma separated: Expression ( , Expression )* ,?
+        while (peek() == Token::kComma) {
+            consume();
+            if (peek() == Token::kRSquare) break;
+            expressions.push_back(std::move(parseExpression()));
+        }
+        
+        return std::make_shared<ArrayElements>(std::move(expressions), false);
+    }
+}
+
+std::shared_ptr<IndexExpression> Parser::parseIndexExpression() {
+    std::shared_ptr<Expression> base_expression;
+    std::shared_ptr<Expression> index_expression;
+    
+    // Parse the base expression
+    base_expression = std::move(parseExpression());
+    
+    // Parse the index part [ Expression ]
+    match(Token::kLSquare);
+    index_expression = std::move(parseExpression());
+    match(Token::kRSquare);
+    
+    return std::make_shared<IndexExpression>(std::move(base_expression), std::move(index_expression));
+}
+
+// Struct expressions
+std::shared_ptr<StructExpression> Parser::parseStructExpression() {
+    std::shared_ptr<PathInExpression> path_in_expression;
+    std::shared_ptr<StructExprFields> struct_expr_fields = nullptr;
+    
+    // Parse the path
+    path_in_expression = std::move(parsePathInExpression());
+    
+    // Parse the struct fields
+    match(Token::kLCurly);
+    if (peek() != Token::kRCurly) {
+        struct_expr_fields = std::move(parseStructExprFields());
+    }
+    match(Token::kRCurly);
+    
+    return std::make_shared<StructExpression>(std::move(path_in_expression), std::move(struct_expr_fields));
+}
+
+std::shared_ptr<StructExprFields> Parser::parseStructExprFields() {
+    std::vector<std::shared_ptr<StructExprField>> struct_expr_fields;
+    
+    // Parse first field
+    struct_expr_fields.push_back(std::move(parseStructExprField()));
+    
+    // Parse remaining fields
+    while (peek() == Token::kComma) {
+        consume();
+        if (peek() == Token::kRCurly) {
+            // Handle trailing comma case
+            break;
+        }
+        struct_expr_fields.push_back(std::move(parseStructExprField()));
+    }
+    
+    return std::make_shared<StructExprFields>(std::move(struct_expr_fields));
+}
+
+std::shared_ptr<StructExprField> Parser::parseStructExprField() {
+    std::string identifier;
+    std::shared_ptr<Expression> expression;
+    
+    // Parse identifier
+    if (peek() == Token::kIdentifier) {
+        identifier = get_string();
+        consume();
+    } else {
+        throw std::runtime_error("parse failed! Expected identifier in struct field");
+    }
+    
+    // Parse colon and expression
+    match(Token::kColon);
+    expression = std::move(parseExpression());
+    
+    return std::make_shared<StructExprField>(std::move(identifier), std::move(expression));
+}
+
+// Call expressions
+std::shared_ptr<CallExpression> Parser::parseCallExpression() {
+    std::shared_ptr<Expression> expression;
+    std::shared_ptr<CallParams> call_params = nullptr;
+    
+    // Parse the expression (function to call)
+    expression = std::move(parseExpression());
+    
+    // Parse the call parameters
+    match(Token::kLParenthese);
+    if (peek() != Token::kRParenthese) {
+        call_params = std::move(parseCallParams());
+    }
+    match(Token::kRParenthese);
+    
+    return std::make_shared<CallExpression>(std::move(expression), std::move(call_params));
+}
+
+std::shared_ptr<CallParams> Parser::parseCallParams() {
+    std::vector<std::shared_ptr<Expression>> expressions;
+    
+    // Parse first expression
+    expressions.push_back(std::move(parseExpression()));
+    
+    // Parse remaining expressions
+    while (peek() == Token::kComma) {
+        consume();
+        if (peek() == Token::kRParenthese) {
+            // Handle trailing comma case
+            break;
+        }
+        expressions.push_back(std::move(parseExpression()));
+    }
+    
+    return std::make_shared<CallParams>(std::move(expressions));
+}
+
+// Method call, field, and path expressions
+std::shared_ptr<MethodCallExpression> Parser::parseMethodCallExpression() {
+    std::shared_ptr<Expression> expression;
+    std::shared_ptr<PathIdentSegment> path_ident_segment;
+    std::shared_ptr<CallParams> call_params = nullptr;
+    
+    // Parse the base expression
+    expression = std::move(parseExpression());
+    
+    // Parse the method call part: . PathIdentSegment ( CallParams? )
+    match(Token::kDot);
+    path_ident_segment = std::move(parsePathIdentSegment());
+    
+    match(Token::kLParenthese);
+    if (peek() != Token::kRParenthese) {
+        call_params = std::move(parseCallParams());
+    }
+    match(Token::kRParenthese);
+    
+    return std::make_shared<MethodCallExpression>(std::move(expression), std::move(path_ident_segment), std::move(call_params));
+}
+
+std::shared_ptr<FieldExpression> Parser::parseFieldExpression() {
+    std::shared_ptr<Expression> expression;
+    std::string identifier;
+    
+    // Parse the base expression
+    expression = std::move(parseExpression());
+    
+    // Parse the field access part: . IDENTIFIER
+    match(Token::kDot);
+    if (peek() == Token::kIdentifier) {
+        identifier = get_string();
+        consume();
+    } else {
+        throw std::runtime_error("parse failed! Expected identifier in field expression");
+    }
+    
+    return std::make_shared<FieldExpression>(std::move(expression), std::move(identifier));
+}
+
+std::shared_ptr<PathExpression> Parser::parsePathExpression() {
+    std::shared_ptr<PathInExpression> path_in_expression;
+    
+    // Parse the path in expression
+    path_in_expression = std::move(parsePathInExpression());
+    
+    return std::make_shared<PathExpression>(std::move(path_in_expression));
+}
