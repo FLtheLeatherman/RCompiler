@@ -50,27 +50,37 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
 - `Statement`: 语句，可包含 Item、LetStatement、ExpressionStatement 或为空
 - `LetStatement`: let 语句
 - `ExpressionStatement`: 表达式语句
+- `Statements`: 语句列表，包含 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock
 - `Expression`: 表达式，分为 ExpressionWithoutBlock 和 ExpressionWithBlock
-- `ExpressionWithoutBlock`: 无块表达式（字面量、路径表达式、操作符表达式等）
-- `ExpressionWithBlock`: 有块表达式（块表达式、循环表达式、if 表达式等）
+- `ExpressionWithoutBlock`: 无块表达式（字面量、路径表达式、操作符表达式等，将使用 Pratt parsing）
+- `ExpressionWithBlock`: 有块表达式（BlockExpression、LoopExpression、IfExpression）
 
-#### 具体表达式类型（已定义但未实现）
-- `LiteralExpression`: 字面量表达式
-- `PathExpression`: 路径表达式
-- `OperatorExpression`: 操作符表达式
-- `GroupedExpression`: 分组表达式
-- `ArrayExpression`: 数组表达式
-- `IndexExpression`: 索引表达式
-- `StructExpression`: 结构体表达式
-- `CallExpression`: 函数调用表达式
-- `MethodCallExpression`: 方法调用表达式
-- `FieldExpression`: 字段访问表达式
-- `ContinueExpression`: continue 表达式
-- `BreakExpression`: break 表达式
-- `ReturnExpression`: return 表达式
-- `BlockExpression`: 块表达式
-- `LoopExpression`: 循环表达式
-- `IfExpression`: if 表达式
+#### 具体表达式类型
+- `CharLiteral`: 字符字面量，包含字符串值（继承 Expression）
+- `StringLiteral`: 字符串字面量，包含字符串值（继承 Expression）
+- `RawStringLiteral`: 原始字符串字面量，包含字符串值（继承 Expression）
+- `CStringLiteral`: C 字符串字面量，包含字符串值（继承 Expression）
+- `RawCStringLiteral`: 原始 C 字符串字面量，包含字符串值（继承 Expression）
+- `IntegerLiteral`: 整数字面量，包含字符串值（继承 Expression）
+- `BoolLiteral`: 布尔字面量，包含布尔值（继承 Expression）
+- `PathExpression`: 路径表达式（未实现）
+- `OperatorExpression`: 操作符表达式（未实现）
+- `GroupedExpression`: 分组表达式（未实现）
+- `ArrayExpression`: 数组表达式（未实现）
+- `IndexExpression`: 索引表达式（未实现）
+- `StructExpression`: 结构体表达式（未实现）
+- `CallExpression`: 函数调用表达式（未实现）
+- `MethodCallExpression`: 方法调用表达式（未实现）
+- `FieldExpression`: 字段访问表达式（未实现）
+- `ContinueExpression`: continue 表达式（未实现）
+- `BreakExpression`: break 表达式（未实现）
+- `ReturnExpression`: return 表达式，包含可选的表达式子节点
+- `BlockExpression`: 块表达式，包含可选的 Statements（已实现）
+- `LoopExpression`: 循环表达式，包含 InfiniteLoopExpression 或 PredicateLoopExpression（已实现）
+- `InfiniteLoopExpression`: 无限循环表达式，包含 BlockExpression（已实现）
+- `PredicateLoopExpression`: 条件循环表达式，包含条件和 BlockExpression（已实现）
+- `Condition`: 条件表达式，包含表达式（不能是 StructExpression）
+- `IfExpression`: if 表达式，包含条件、then 块和可选的 else 分支
 
 #### 类型和模式节点
 - `PatternNoTopAlt`: 模式（未实现）
@@ -119,11 +129,27 @@ Parser 类已定义完整的解析函数接口：
 - `parseExpression()`: 解析表达式
 - `parsePathInExpression()`: 解析表达式中的路径
 - `parsePathIdentSegment()`: 解析路径标识符段
+- `parseCharLiteral()`: 解析字符字面量
+- `parseStringLiteral()`: 解析字符串字面量
+- `parseRawStringLiteral()`: 解析原始字符串字面量
+- `parseCStringLiteral()`: 解析 C 字符串字面量
+- `parseRawCStringLiteral()`: 解析原始 C 字符串字面量
+- `parseIntegerLiteral()`: 解析整数字面量
+- `parseBoolLiteral()`: 解析布尔字面量
+- `parseCondition()`: 解析条件表达式（检查不能是 StructExpression）
+- `parseIfExpression()`: 解析 if 表达式
+- `parseReturnExpression()`: 解析 return 表达式
+- `parseLoopExpression()`: 解析循环表达式（已实现）
+- `parseInfiniteLoopExpression()`: 解析无限循环表达式（已实现）
+- `parsePredicateLoopExpression()`: 解析条件循环表达式（已实现）
+- `parseBreakExpression()`: 解析 break 表达式（已实现）
+- `parseContinueExpression()`: 解析 continue 表达式（已实现）
 
 #### 待实现的解析函数
-- `parseExpressionWithoutBlock()`: 解析无块表达式（仅返回 nullptr）
-- `parseExpressionWithBlock()`: 解析有块表达式（仅返回 nullptr）
-- `parseBlockExpression()`: 解析块表达式（仅返回 nullptr）
+- `parseExpressionWithoutBlock()`: 解析无块表达式（部分实现，支持 if 和 return 表达式）
+- `parseExpressionWithBlock()`: 解析有块表达式（支持 IfExpression、LoopExpression 和 BlockExpression）
+- `parseBlockExpression()`: 解析块表达式（支持 `{ Statements? }` 语法）
+- `parseStatements()`: 解析语句列表（支持 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock）
 - `parsePatternNoTopAlt()`: 解析模式（仅返回 nullptr）
 - `parseType()`: 解析类型（仅返回 nullptr）
 
@@ -150,10 +176,10 @@ Parser 类已定义完整的解析函数接口：
 - 支持可选语法元素的解析
 
 #### 当前限制
-1. **表达式解析未完成**：大部分表达式相关函数仅返回 nullptr
+1. **表达式解析部分完成**：IfExpression、LoopExpression、InfiniteLoopExpression、PredicateLoopExpression 已实现并集成到 ExpressionWithBlock 中。ReturnExpression、BreakExpression、ContinueExpression 已实现但将集成到未来的 Pratt parsing 系统中。IfExpression 支持条件、then 块和可选的 else 分支，使用专门的 Condition 类来处理条件。LoopExpression 支持 `loop` 和 `while` 循环，BreakExpression 支持可选的表达式，ContinueExpression 不支持表达式。ExpressionWithBlock 现在正确支持 BlockExpression、LoopExpression、IfExpression 三种类型。ExpressionWithoutBlock 将使用 Pratt parsing 实现
 2. **类型解析未完成**：parseType 函数仅返回 nullptr
 3. **模式解析未完成**：parsePatternNoTopAlt 函数仅返回 nullptr
-4. **块表达式解析未完成**：parseBlockExpression 函数仅返回 nullptr
+4. **块表达式解析已完成**：parseBlockExpression 函数支持 `{ Statements? }` 语法，parseStatements 函数支持 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock 的解析
 
 ## 项目架构
 - 采用访问者模式设计 AST

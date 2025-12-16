@@ -40,6 +40,7 @@ class TraitImpl;
 class Statement;
 class LetStatement;
 class ExpressionStatement;
+class Statements;
 class Expression;
 class ExpressionWithoutBlock;
 class ExpressionWithBlock;
@@ -59,6 +60,7 @@ class ReturnExpression;
 class BlockExpression;
 class LoopExression;
 class IfExpression;
+class Condition;
 /****Statements & expressions****/
 
 /****Patterns****/
@@ -74,5 +76,5 @@ class UnitType;
 
 /****Paths****/
 class PathInExpression;
-class PathIndentSegment; // also PathExprSegment, TypePath, TypePathSegment
+class PathIdentSegment; // also PathExprSegment, TypePath, TypePathSegment
 /****Paths****/

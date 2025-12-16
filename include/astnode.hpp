@@ -308,9 +308,21 @@ public:
 class ExpressionStatement : public ASTNode {
 private:
     std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
+    bool has_semi;
 public:
-    ExpressionStatement(std::shared_ptr<ASTNode> child)
-        : child(std::move(child)) {}
+    ExpressionStatement(std::shared_ptr<ASTNode> child, bool has_semi)
+        : child(std::move(child)), has_semi(has_semi) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class Statements : public ASTNode {
+private:
+    std::vector<std::shared_ptr<ASTNode>> statements; // Statement+ or Statement+ ExpressionWithoutBlock or ExpressionWithoutBlock
+public:
+    Statements(std::vector<std::shared_ptr<ASTNode>> statements)
+        : statements(std::move(statements)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -320,6 +332,7 @@ class Expression : public ASTNode {
 private:
     std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
 public:
+    Expression() = default;
     Expression(std::shared_ptr<ASTNode> child)
         : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
@@ -327,40 +340,102 @@ public:
     }
 };
 
-class ExpressionWithoutBlock : public ASTNode {
-private:
-    std::shared_ptr<ASTNode> child; 
+class ExpressionWithoutBlock : public Expression {
+public:
+    std::shared_ptr<ASTNode> child;
     // LiteralExpression, PathExpression, OperatorExpression, GroupedExpression,
     // ArrayExpression, IndexExpression, StructExpression, CallExpression,
     // MethodCallExpression, FieldExpression, ContinueExpression, BreakExpression, ReturnExpression.
-public:
     ExpressionWithoutBlock(std::shared_ptr<ASTNode> child)
-        : child(std::move(child)) {}
+        : Expression(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class ExpressionWithBlock : public ASTNode {
+class ExpressionWithBlock : public Expression {
 private:
     std::shared_ptr<ASTNode> child;
 public:
     ExpressionWithBlock(std::shared_ptr<ASTNode> child)
-        : child(std::move(child)) {}
+        : Expression(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class LiteralExpression : public ASTNode {
+
+class CharLiteral : public Expression {
+private:
+    std::string value;
 public:
-    LiteralExpression() {}
+    CharLiteral(std::string value) : value(std::move(value)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class PathExpression : public ASTNode {
+class StringLiteral : public Expression {
+private:
+    std::string value;
+public:
+    StringLiteral(std::string value) : value(std::move(value)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class RawStringLiteral : public Expression {
+private:
+    std::string value;
+public:
+    RawStringLiteral(std::string value) : value(std::move(value)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class CStringLiteral : public Expression {
+private:
+    std::string value;
+public:
+    CStringLiteral(std::string value) : value(std::move(value)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class RawCStringLiteral : public Expression {
+private:
+    std::string value;
+public:
+    RawCStringLiteral(std::string value) : value(std::move(value)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class IntegerLiteral : public Expression {
+private:
+    std::string value;
+public:
+    IntegerLiteral(std::string value) : value(std::move(value)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class BoolLiteral : public Expression {
+private:
+    bool value;
+public:
+    BoolLiteral(bool value) : value(value) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class PathExpression : public Expression {
 public:
     PathExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -368,7 +443,7 @@ public:
     }
 };
 
-class OperatorExpression : public ASTNode {
+class OperatorExpression : public Expression {
 public:
     OperatorExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -376,7 +451,7 @@ public:
     }
 };
 
-class GroupedExpression : public ASTNode {
+class GroupedExpression : public Expression {
 public:
     GroupedExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -384,7 +459,7 @@ public:
     }
 };
 
-class ArrayExpression : public ASTNode {
+class ArrayExpression : public Expression {
 public:
     ArrayExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -392,7 +467,7 @@ public:
     }
 };
 
-class IndexExpression : public ASTNode {
+class IndexExpression : public Expression {
 public:
     IndexExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -400,7 +475,7 @@ public:
     }
 };
 
-class StructExpression : public ASTNode {
+class StructExpression : public Expression {
 public:
     StructExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -408,7 +483,7 @@ public:
     }
 };
 
-class CallExpression : public ASTNode {
+class CallExpression : public Expression {
 public:
     CallExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -416,7 +491,7 @@ public:
     }
 };
 
-class MethodCallExpression : public ASTNode {
+class MethodCallExpression : public Expression {
 public:
     MethodCallExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -424,7 +499,7 @@ public:
     }
 };
 
-class FieldExpression : public ASTNode {
+class FieldExpression : public Expression {
 public:
     FieldExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -432,7 +507,7 @@ public:
     }
 };
 
-class ContinueExpression : public ASTNode {
+class ContinueExpression : public Expression {
 public:
     ContinueExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -440,23 +515,29 @@ public:
     }
 };
 
-class BreakExpression : public ASTNode {
+class BreakExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
 public:
-    BreakExpression() {}
+    BreakExpression(std::shared_ptr<Expression> expression)
+        : expression(std::move(expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class ReturnExpression : public ASTNode {
+class ReturnExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
 public:
-    ReturnExpression() {}
+    ReturnExpression(std::shared_ptr<Expression> expression)
+        : expression(std::move(expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class BlockExpression : public ASTNode {
+class BlockExpression : public Expression {
 public:
     BlockExpression() {}
     void accept(ASTVisitor* visitor) override {
@@ -464,17 +545,63 @@ public:
     }
 };
 
-class LoopExpression : public ASTNode {
+class LoopExpression : public Expression {
+private:
+    std::shared_ptr<ASTNode> child; // InfiniteLoopExpression or PredicateLoopExpression
 public:
-    LoopExpression() {}
+    LoopExpression(std::shared_ptr<ASTNode> child)
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
-class IfExpression : public ASTNode {
+class InfiniteLoopExpression : public Expression {
+private:
+    std::shared_ptr<BlockExpression> block_expression;
 public:
-    IfExpression() {}
+    InfiniteLoopExpression(std::shared_ptr<BlockExpression> block_expression)
+        : block_expression(std::move(block_expression)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class PredicateLoopExpression : public Expression {
+private:
+    std::shared_ptr<Condition> condition;
+    std::shared_ptr<BlockExpression> block_expression;
+public:
+    PredicateLoopExpression(std::shared_ptr<Condition> condition, std::shared_ptr<BlockExpression> block_expression)
+        : condition(std::move(condition)), block_expression(std::move(block_expression)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class Condition : public Expression {
+private:
+    std::shared_ptr<Expression> expression; // Expression except StructExpression
+public:
+    Condition(std::shared_ptr<Expression> expression)
+        : expression(std::move(expression)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class IfExpression : public Expression {
+private:
+    std::shared_ptr<Condition> condition;
+    std::shared_ptr<BlockExpression> then_block;
+    std::shared_ptr<Expression> else_branch; // BlockExpression or IfExpression
+public:
+    IfExpression(std::shared_ptr<Condition> condition,
+                std::shared_ptr<BlockExpression> then_block,
+                std::shared_ptr<Expression> else_branch)
+        : condition(std::move(condition)),
+          then_block(std::move(then_block)),
+          else_branch(std::move(else_branch)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -526,7 +653,7 @@ private:
     std::shared_ptr<PathIdentSegment> segment1, segment2;
 public:
     PathInExpression(std::shared_ptr<PathIdentSegment> segment1, std::shared_ptr<PathIdentSegment> segment2)
-        : segment1(std::move(segment1)), segment2(segment2) {}
+        : segment1(std::move(segment1)), segment2(std::move(segment2)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

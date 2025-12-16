@@ -399,10 +399,10 @@ std::shared_ptr<Statement> Parser::parseStatement() {
         std::shared_ptr<ASTNode> child;
         size_t tmp = pos;
         try {
-            child = std::move(parseItem());
+            child = std::move(parseExpressionStatement());
         } catch (...) {
             pos = tmp;
-            child = std::move(parseExpressionStatement());
+            child = std::move(parseItem());
         }
         return std::make_shared<Statement>(std::move(child));
     }
@@ -423,16 +423,60 @@ std::shared_ptr<LetStatement> Parser::parseLetStatement() {
 std::shared_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
     std::shared_ptr<ASTNode> child;
     size_t tmp = pos;
+    bool has_semi = false;
     try {
         child = parseExpressionWithBlock();
-        if (peek() == Token::kSemi) consume();
+        if (peek() == Token::kSemi) {
+            consume();
+            has_semi = true;
+        }
     } catch (...) {
         pos = tmp;
         child = parseExpressionWithoutBlock();
         match(Token::kSemi);
+        has_semi = true;
     }
-    return std::make_shared<ExpressionStatement>(std::move(child));
+    return std::make_shared<ExpressionStatement>(std::move(child), has_semi);
 }
+
+std::shared_ptr<Statements> Parser::parseStatements() {
+    std::vector<std::shared_ptr<ASTNode>> statements;
+    
+    // Try to parse statements until we hit a closing brace or EOF
+    while (peek() != Token::kRCurly && peek() != Token::kEOF) {
+        size_t tmp = pos;
+        std::shared_ptr<ASTNode> statement;
+        
+        // First try to parse a Statement
+        try {
+            statement = std::move(parseStatement());
+            if (statement) {
+                statements.push_back(std::move(statement));
+                continue;
+            }
+        } catch (...) {
+            pos = tmp;
+        }
+        
+        // If Statement parsing failed, try to parse ExpressionWithoutBlock
+        try {
+            statement = std::move(parseExpressionWithoutBlock());
+            if (statement) {
+                statements.push_back(std::move(statement));
+                // Check if there's a semicolon after the expression
+                break;
+            }
+        } catch (...) {
+            pos = tmp;
+        }
+        
+        // If both failed, break
+        break;
+    }
+    
+    return std::make_shared<Statements>(std::move(statements));
+}
+
 std::shared_ptr<Expression> Parser::parseExpression() {
     std::shared_ptr<ASTNode> child;
     size_t tmp = pos;
@@ -445,13 +489,45 @@ std::shared_ptr<Expression> Parser::parseExpression() {
     return std::make_shared<Expression>(std::move(child));
 }
 std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
+    // Pratt parsing will be implemented later
     return nullptr;
 }
 std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
+    std::shared_ptr<ASTNode> child;
+    
+    // Try to parse if expression
+    if (peek() == Token::kIf) {
+        child = std::move(parseIfExpression());
+        return std::make_shared<ExpressionWithBlock>(std::move(child));
+    }
+    
+    // Try to parse loop expression
+    if (peek() == Token::kLoop || peek() == Token::kWhile) {
+        child = std::move(parseLoopExpression());
+        return std::make_shared<ExpressionWithBlock>(std::move(child));
+    }
+    
+    // Try to parse block expression
+    if (peek() == Token::kLCurly) {
+        child = std::move(parseBlockExpression());
+        return std::make_shared<ExpressionWithBlock>(std::move(child));
+    }
+    
     return nullptr;
 }
 std::shared_ptr<BlockExpression> Parser::parseBlockExpression() {
-    return nullptr;
+    std::shared_ptr<Statements> statements = nullptr;
+    
+    match(Token::kLCurly);
+    
+    // Check if there are statements inside the block
+    if (peek() != Token::kRCurly) {
+        statements = std::move(parseStatements());
+    }
+    
+    match(Token::kRCurly);
+    
+    return std::make_shared<BlockExpression>(std::move(statements));
 }
 
 std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
@@ -494,4 +570,172 @@ std::shared_ptr<PathIdentSegment> Parser::parsePathIdentSegment() {
     } else {
         throw std::runtime_error("parse failed!");
     }
+}
+
+
+std::shared_ptr<CharLiteral> Parser::parseCharLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<CharLiteral>(std::move(value));
+}
+
+std::shared_ptr<StringLiteral> Parser::parseStringLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<StringLiteral>(std::move(value));
+}
+
+std::shared_ptr<RawStringLiteral> Parser::parseRawStringLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<RawStringLiteral>(std::move(value));
+}
+
+std::shared_ptr<CStringLiteral> Parser::parseCStringLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<CStringLiteral>(std::move(value));
+}
+
+std::shared_ptr<RawCStringLiteral> Parser::parseRawCStringLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<RawCStringLiteral>(std::move(value));
+}
+
+std::shared_ptr<IntegerLiteral> Parser::parseIntegerLiteral() {
+    std::string value = get_string();
+    consume();
+    return std::make_shared<IntegerLiteral>(std::move(value));
+}
+
+std::shared_ptr<BoolLiteral> Parser::parseBoolLiteral() {
+    if (peek() == Token::kTrue) {
+        consume();
+        return std::make_shared<BoolLiteral>(true);
+    } else if (peek() == Token::kFalse) {
+        consume();
+        return std::make_shared<BoolLiteral>(false);
+    } else {
+        throw std::runtime_error("parse failed! Expected boolean literal");
+    }
+}
+
+std::shared_ptr<Condition> Parser::parseCondition() {
+    std::shared_ptr<Expression> expression = std::move(parseExpression());
+    
+    // Check if expression is StructExpression (should not be allowed)
+    // StructExpression can only be ExpressionWithoutBlock
+    if (expression) {
+        // For ExpressionWithoutBlock
+        if (auto expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(expression)) {
+            if (expr_without_block->child) {
+                if (std::dynamic_pointer_cast<StructExpression>(expr_without_block->child)) {
+                    throw std::runtime_error("parse failed! StructExpression not allowed in if condition");
+                }
+            }
+        }
+        // For direct Expression types (including StructExpression)
+        else if (std::dynamic_pointer_cast<StructExpression>(expression)) {
+            throw std::runtime_error("parse failed! StructExpression not allowed in if condition");
+        }
+    }
+    
+    return std::make_shared<Condition>(std::move(expression));
+}
+
+std::shared_ptr<IfExpression> Parser::parseIfExpression() {
+    std::shared_ptr<Condition> condition;
+    std::shared_ptr<BlockExpression> then_block;
+    std::shared_ptr<Expression> else_branch = nullptr;
+    
+    match(Token::kIf);
+    
+    // Parse condition
+    condition = std::move(parseCondition());
+    
+    // Parse then block
+    then_block = std::move(parseBlockExpression());
+    
+    // Parse optional else branch
+    if (peek() == Token::kElse) {
+        consume();
+        if (peek() == Token::kIf) {
+            // else if - parse another IfExpression
+            else_branch = std::move(parseIfExpression());
+        } else {
+            // else block - parse BlockExpression
+            else_branch = std::move(parseBlockExpression());
+        }
+    }
+    
+    return std::make_shared<IfExpression>(std::move(condition),
+                                       std::move(then_block),
+                                       std::move(else_branch));
+}
+
+std::shared_ptr<ReturnExpression> Parser::parseReturnExpression() {
+    std::shared_ptr<Expression> expression = nullptr;
+    
+    match(Token::kReturn);
+    
+    // Check if there's an expression after return
+    if (peek() != Token::kSemi && peek() != Token::kRCurly && peek() != Token::kEOF) {
+        expression = std::move(parseExpression());
+    }
+    
+    return std::make_shared<ReturnExpression>(std::move(expression));
+}
+
+// Loop expressions
+std::shared_ptr<LoopExpression> Parser::parseLoopExpression() {
+    std::shared_ptr<ASTNode> child;
+    
+    if (peek() == Token::kLoop) {
+        child = std::move(parseInfiniteLoopExpression());
+    } else if (peek() == Token::kWhile) {
+        child = std::move(parsePredicateLoopExpression());
+    } else {
+        throw std::runtime_error("parse failed! Expected 'loop' or 'while'");
+    }
+    
+    return std::make_shared<LoopExpression>(std::move(child));
+}
+
+std::shared_ptr<InfiniteLoopExpression> Parser::parseInfiniteLoopExpression() {
+    std::shared_ptr<BlockExpression> block_expression;
+    
+    match(Token::kLoop);
+    block_expression = std::move(parseBlockExpression());
+    
+    return std::make_shared<InfiniteLoopExpression>(std::move(block_expression));
+}
+
+std::shared_ptr<PredicateLoopExpression> Parser::parsePredicateLoopExpression() {
+    std::shared_ptr<Condition> condition;
+    std::shared_ptr<BlockExpression> block_expression;
+    
+    match(Token::kWhile);
+    condition = std::move(parseCondition());
+    block_expression = std::move(parseBlockExpression());
+    
+    return std::make_shared<PredicateLoopExpression>(std::move(condition), std::move(block_expression));
+}
+
+std::shared_ptr<BreakExpression> Parser::parseBreakExpression() {
+    std::shared_ptr<Expression> expression = nullptr;
+    
+    match(Token::kBreak);
+    
+    // Check if there's an expression after break
+    if (peek() != Token::kSemi && peek() != Token::kRCurly && peek() != Token::kEOF) {
+        expression = std::move(parseExpression());
+    }
+    
+    return std::make_shared<BreakExpression>(std::move(expression));
+}
+
+std::shared_ptr<ContinueExpression> Parser::parseContinueExpression() {
+    match(Token::kContinue);
+    return std::make_shared<ContinueExpression>();
 }

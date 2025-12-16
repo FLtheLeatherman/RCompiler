@@ -44,6 +44,7 @@ public:
     std::shared_ptr<Statement> parseStatement();
     std::shared_ptr<LetStatement> parseLetStatement();
     std::shared_ptr<ExpressionStatement> parseExpressionStatement();
+    std::shared_ptr<Statements> parseStatements();
     std::shared_ptr<Expression> parseExpression();
     std::shared_ptr<ExpressionWithoutBlock> parseExpressionWithoutBlock();
     std::shared_ptr<ExpressionWithBlock> parseExpressionWithBlock();
@@ -55,4 +56,21 @@ public:
 
     std::shared_ptr<PathInExpression> parsePathInExpression();
     std::shared_ptr<PathIdentSegment> parsePathIdentSegment();
+    std::shared_ptr<CharLiteral> parseCharLiteral();
+    std::shared_ptr<StringLiteral> parseStringLiteral();
+    std::shared_ptr<RawStringLiteral> parseRawStringLiteral();
+    std::shared_ptr<CStringLiteral> parseCStringLiteral();
+    std::shared_ptr<RawCStringLiteral> parseRawCStringLiteral();
+    std::shared_ptr<IntegerLiteral> parseIntegerLiteral();
+    std::shared_ptr<BoolLiteral> parseBoolLiteral();
+    std::shared_ptr<ReturnExpression> parseReturnExpression();
+    std::shared_ptr<IfExpression> parseIfExpression();
+    std::shared_ptr<Condition> parseCondition();
+    
+    // Loop expressions
+    std::shared_ptr<LoopExpression> parseLoopExpression();
+    std::shared_ptr<InfiniteLoopExpression> parseInfiniteLoopExpression();
+    std::shared_ptr<PredicateLoopExpression> parsePredicateLoopExpression();
+    std::shared_ptr<BreakExpression> parseBreakExpression();
+    std::shared_ptr<ContinueExpression> parseContinueExpression();
 };
