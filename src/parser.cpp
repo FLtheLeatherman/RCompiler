@@ -19,6 +19,383 @@ void Parser::match(Token token) {
     }
 }
 
+int Parser::getTokenLeftBP(Token token) {
+    switch (token) {
+        // PATH_ACCESS = 200
+        case Token::kPathSep:
+        case Token::kDot:
+            return PATH_ACCESS;
+        
+        // CALL_INDEX = 190
+        case Token::kLParenthese:  // function call
+        case Token::kLSquare:     // array indexing
+            return CALL_INDEX;
+        
+        // STRUCT_EXPR = 180
+        case Token::kLCurly:      // struct expression
+            return STRUCT_EXPR;
+        
+        // TYPE_CAST = 160 (as operator)
+        case Token::kAs:
+            return TYPE_CAST;
+        
+        // MUL_DIV_MOD = 150
+        case Token::kStar:
+        case Token::kSlash:
+        case Token::kPercent:
+            return MUL_DIV_MOD;
+        
+        // ADD_SUB = 140
+        case Token::kPlus:
+        case Token::kMinus:
+            return ADD_SUB;
+        
+        // SHIFT = 130
+        case Token::kShl:
+        case Token::kShr:
+            return SHIFT;
+        
+        // BIT_AND = 120
+        case Token::kAnd:
+            return BIT_AND;
+        
+        // BIT_XOR = 110
+        case Token::kCaret:
+            return BIT_XOR;
+        
+        // BIT_OR = 100
+        case Token::kOr:
+            return BIT_OR;
+        
+        // COMPARISON = 90
+        case Token::kEqEq:
+        case Token::kNe:
+        case Token::kLt:
+        case Token::kLe:
+        case Token::kGt:
+        case Token::kGe:
+            return COMPARISON;
+        
+        // LOGIC_AND = 80
+        case Token::kAndAnd:
+            return LOGIC_AND;
+        
+        // LOGIC_OR = 70
+        case Token::kOrOr:
+            return LOGIC_OR;
+        
+        // ASSIGNMENT = 60
+        case Token::kEq:
+        case Token::kPlusEq:
+        case Token::kMinusEq:
+        case Token::kStarEq:
+        case Token::kSlashEq:
+        case Token::kPercentEq:
+        case Token::kCaretEq:
+        case Token::kAndEq:
+        case Token::kOrEq:
+        case Token::kShlEq:
+        case Token::kShrEq:
+        case Token::kDotDot:
+        case Token::kDotDotDot:
+        case Token::kDotDotEq:
+            return ASSIGNMENT;
+        
+        // FLOW_CONTROL = 50
+        case Token::kReturn:
+        case Token::kBreak:
+        case Token::kContinue:
+            return FLOW_CONTROL;
+        
+        default:
+            return 0; // No binding power for non-operators
+    }
+}
+
+int Parser::getTokenUnaryBP(Token token) {
+    switch (token) {
+        // UNARY = 170
+        case Token::kMinus:       // unary minus
+        case Token::kStar:        // dereference
+        case Token::kAnd:         // reference
+        case Token::kNot:         // logical not
+        case Token::kQuestion:    // try operator
+            return UNARY;
+        
+        default:
+            return 0; // No unary binding power for non-unary operators
+    }
+}
+
+int Parser::getTokenRightBP(Token token) {
+    // For all operators, we treat them as left-associative
+    // So getTokenRightBP should return getTokenLeftBP + 1
+    int leftBP = getTokenLeftBP(token);
+    return leftBP > 0 ? leftBP + 1 : 0;
+}
+
+std::shared_ptr<ASTNode> Parser::parsePrattPrefix() {
+    Token token = peek();
+    
+    switch (token) {
+        // Control flow expressions
+        case Token::kIf:
+            return parseIfExpression();
+        
+        case Token::kLoop:
+        case Token::kWhile:
+            return parseLoopExpression();
+        
+        case Token::kReturn:
+            return parseReturnExpression();
+        
+        case Token::kBreak:
+            return parseBreakExpression();
+        
+        case Token::kContinue:
+            return parseContinueExpression();
+        
+        // Block expressions
+        case Token::kLCurly:
+            return parseBlockExpression();
+        
+        // Grouped expressions
+        case Token::kLParenthese:
+            return parseGroupedExpression();
+        
+        // Array expressions
+        case Token::kLSquare:
+            return parseArrayExpression();
+        
+        // Struct expressions
+        case Token::kIdentifier: {
+            // This could be a path expression or struct expression
+            // We need to look ahead to determine
+            size_t tmp = pos;
+            consume(); // consume identifier
+            if (peek() == Token::kLCurly) {
+                pos = tmp; // reset position
+                return parseStructExpression();
+            } else {
+                pos = tmp; // reset position
+                return parsePathExpression();
+            }
+        }
+        
+        // Unary operators
+        case Token::kMinus:
+        case Token::kNot:
+        case Token::kQuestion: {
+            return parseUnaryExpression();
+        }
+        
+        case Token::kStar: {
+            return parseDereferenceExpression();
+        }
+        
+        case Token::kAnd: {
+            return parseBorrowExpression();
+        }
+        
+        // Literals
+        case Token::kCharLiteral:
+            return parseCharLiteral();
+        
+        case Token::kStringLiteral:
+            return parseStringLiteral();
+        
+        case Token::kRawStringLiteral:
+            return parseRawStringLiteral();
+        
+        case Token::kCStringLiteral:
+            return parseCStringLiteral();
+        
+        case Token::kRawCStringLiteral:
+            return parseRawCStringLiteral();
+        
+        case Token::kIntegerLiteral:
+            return parseIntegerLiteral();
+        
+        case Token::kTrue:
+        case Token::kFalse:
+            return parseBoolLiteral();
+        
+        default:
+            throw std::runtime_error("parse failed! Unexpected token in prefix expression");
+    }
+}
+
+std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
+    // Try to parse prefix expression
+    auto lhs = parsePrattPrefix();
+    if (!lhs) {
+        return nullptr;
+    }
+    
+    // While the next operator has higher binding power, consume it
+    while (true) {
+        Token next_token = peek();
+        
+        // Check for closing tokens that should break the loop
+        if (next_token == Token::kRParenthese || next_token == Token::kRSquare || next_token == Token::kRCurly) {
+            break;
+        }
+        
+        int next_bp = getTokenLeftBP(next_token);
+        
+        if (next_bp <= current_bp) {
+            break;
+        }
+        
+        // Create proper expression node based on operator type
+        switch (next_token) {
+            // Function call
+            case Token::kLParenthese: {
+                pos--; // Put back the '(' for the infix parser
+                lhs = parseCallExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
+                break;
+            }
+            
+            // Index expression
+            case Token::kLSquare: {
+                pos--; // Put back the '[' for the infix parser
+                lhs = parseIndexExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
+                break;
+            }
+            
+            // Method call and field access
+            case Token::kDot: {
+                // Look ahead to determine if it's a method call or field access
+                if (pos + 1 < tokens.size() && tokens[pos + 1].first == Token::kLParenthese) {
+                    pos--; // Put back the '.' for the infix parser
+                    lhs = parseMethodCallExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
+                } else {
+                    pos--; // Put back the '.' for the infix parser
+                    lhs = parseFieldExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
+                }
+                break;
+            }
+            
+            // Type cast
+            case Token::kAs: {
+                consume(); // Consume 'as'
+                auto type = parseType();
+                lhs = parseTypeCastExpression(std::dynamic_pointer_cast<Expression>(lhs), std::move(type));
+                break;
+            }
+            
+            // Assignment and binary operators - need to parse RHS
+            default: {
+                // Consume the operator and parse the right-hand side
+                consume();
+                int right_bp = getTokenRightBP(next_token);
+                auto rhs = parsePrattExpression(right_bp);
+                
+                if (!rhs) {
+                    throw std::runtime_error("parse failed! Expected expression after operator");
+                }
+                
+                // Assignment
+                if (next_token == Token::kEq) {
+                    lhs = parseAssignmentExpression(std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                // Compound assignment
+                else if (next_token == Token::kPlusEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::PLUS_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kMinusEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::MINUS_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kStarEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::STAR_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kSlashEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::SLASH_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kPercentEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::PERCENT_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kCaretEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::CARET_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kAndEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::AND_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kOrEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::OR_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kShlEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::SHL_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kShrEq) {
+                    lhs = parseCompoundAssignmentExpression(CompoundAssignmentExpression::SHR_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                // Binary operators
+                else if (next_token == Token::kPlus) {
+                    lhs = parseBinaryExpression(BinaryExpression::PLUS, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kMinus) {
+                    lhs = parseBinaryExpression(BinaryExpression::MINUS, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kStar) {
+                    lhs = parseBinaryExpression(BinaryExpression::STAR, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kSlash) {
+                    lhs = parseBinaryExpression(BinaryExpression::SLASH, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kPercent) {
+                    lhs = parseBinaryExpression(BinaryExpression::PERCENT, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kCaret) {
+                    lhs = parseBinaryExpression(BinaryExpression::CARET, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kAnd) {
+                    lhs = parseBinaryExpression(BinaryExpression::AND, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kOr) {
+                    lhs = parseBinaryExpression(BinaryExpression::OR, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kShl) {
+                    lhs = parseBinaryExpression(BinaryExpression::SHL, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kShr) {
+                    lhs = parseBinaryExpression(BinaryExpression::SHR, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kEqEq) {
+                    lhs = parseBinaryExpression(BinaryExpression::EQ_EQ, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kNe) {
+                    lhs = parseBinaryExpression(BinaryExpression::NE, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kGt) {
+                    lhs = parseBinaryExpression(BinaryExpression::GT, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kLt) {
+                    lhs = parseBinaryExpression(BinaryExpression::LT, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kGe) {
+                    lhs = parseBinaryExpression(BinaryExpression::GE, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kLe) {
+                    lhs = parseBinaryExpression(BinaryExpression::LE, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kAndAnd) {
+                    lhs = parseBinaryExpression(BinaryExpression::AND_AND, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else if (next_token == Token::kOrOr) {
+                    lhs = parseBinaryExpression(BinaryExpression::OR_OR, std::dynamic_pointer_cast<Expression>(lhs), std::dynamic_pointer_cast<Expression>(rhs));
+                }
+                else {
+                    throw std::runtime_error("parse failed! Unexpected operator in infix expression");
+                }
+                break;
+            }
+        }
+    }
+    
+    return lhs;
+}
+
 std::shared_ptr<Crate> Parser::parseCrate() {
     // std::cerr << "Crate: {\n";
     std::vector<std::shared_ptr<Item>> items;
@@ -484,12 +861,14 @@ std::shared_ptr<Expression> Parser::parseExpression() {
         child = parseExpressionWithBlock();
     } catch (...) {
         pos = tmp;
-        child = parseExpressionWithoutBlock();
+        child = parsePrattExpression(0);
     }
     return std::make_shared<Expression>(std::move(child));
 }
 std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
     // Pratt parsing will be implemented later
+
+    // 调用 parseExpression，如果返回来的类型可以被 cast 到 ExpressionWithBlock，抛出错误，否则正常运行。
     return nullptr;
 }
 std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
@@ -811,6 +1190,17 @@ std::shared_ptr<IndexExpression> Parser::parseIndexExpression() {
     return std::make_shared<IndexExpression>(std::move(base_expression), std::move(index_expression));
 }
 
+std::shared_ptr<IndexExpression> Parser::parseIndexExpressionFromInfix(std::shared_ptr<Expression> lhs) {
+    std::shared_ptr<Expression> index_expression;
+    
+    // Parse the index part [ Expression ]
+    match(Token::kLSquare);
+    index_expression = std::move(parseExpression());
+    match(Token::kRSquare);
+    
+    return std::make_shared<IndexExpression>(std::move(lhs), std::move(index_expression));
+}
+
 // Struct expressions
 std::shared_ptr<StructExpression> Parser::parseStructExpression() {
     std::shared_ptr<PathInExpression> path_in_expression;
@@ -885,6 +1275,19 @@ std::shared_ptr<CallExpression> Parser::parseCallExpression() {
     return std::make_shared<CallExpression>(std::move(expression), std::move(call_params));
 }
 
+std::shared_ptr<CallExpression> Parser::parseCallExpressionFromInfix(std::shared_ptr<Expression> lhs) {
+    std::shared_ptr<CallParams> call_params = nullptr;
+    
+    // Parse the call parameters
+    match(Token::kLParenthese);
+    if (peek() != Token::kRParenthese) {
+        call_params = std::move(parseCallParams());
+    }
+    match(Token::kRParenthese);
+    
+    return std::make_shared<CallExpression>(std::move(lhs), std::move(call_params));
+}
+
 std::shared_ptr<CallParams> Parser::parseCallParams() {
     std::vector<std::shared_ptr<Expression>> expressions;
     
@@ -926,6 +1329,23 @@ std::shared_ptr<MethodCallExpression> Parser::parseMethodCallExpression() {
     return std::make_shared<MethodCallExpression>(std::move(expression), std::move(path_ident_segment), std::move(call_params));
 }
 
+std::shared_ptr<MethodCallExpression> Parser::parseMethodCallExpressionFromInfix(std::shared_ptr<Expression> lhs) {
+    std::shared_ptr<PathIdentSegment> path_ident_segment;
+    std::shared_ptr<CallParams> call_params = nullptr;
+    
+    // Parse the method call part: . PathIdentSegment ( CallParams? )
+    match(Token::kDot);
+    path_ident_segment = std::move(parsePathIdentSegment());
+    
+    match(Token::kLParenthese);
+    if (peek() != Token::kRParenthese) {
+        call_params = std::move(parseCallParams());
+    }
+    match(Token::kRParenthese);
+    
+    return std::make_shared<MethodCallExpression>(std::move(lhs), std::move(path_ident_segment), std::move(call_params));
+}
+
 std::shared_ptr<FieldExpression> Parser::parseFieldExpression() {
     std::shared_ptr<Expression> expression;
     std::string identifier;
@@ -945,6 +1365,21 @@ std::shared_ptr<FieldExpression> Parser::parseFieldExpression() {
     return std::make_shared<FieldExpression>(std::move(expression), std::move(identifier));
 }
 
+std::shared_ptr<FieldExpression> Parser::parseFieldExpressionFromInfix(std::shared_ptr<Expression> lhs) {
+    std::string identifier;
+    
+    // Parse the field access part: . IDENTIFIER
+    match(Token::kDot);
+    if (peek() == Token::kIdentifier) {
+        identifier = get_string();
+        consume();
+    } else {
+        throw std::runtime_error("parse failed! Expected identifier in field expression");
+    }
+    
+    return std::make_shared<FieldExpression>(std::move(lhs), std::move(identifier));
+}
+
 std::shared_ptr<PathExpression> Parser::parsePathExpression() {
     std::shared_ptr<PathInExpression> path_in_expression;
     
@@ -952,4 +1387,87 @@ std::shared_ptr<PathExpression> Parser::parsePathExpression() {
     path_in_expression = std::move(parsePathInExpression());
     
     return std::make_shared<PathExpression>(std::move(path_in_expression));
+}
+
+// Unary expressions
+std::shared_ptr<UnaryExpression> Parser::parseUnaryExpression() {
+    Token token = peek();
+    UnaryExpression::UnaryType type;
+    
+    switch (token) {
+        case Token::kMinus:
+            type = UnaryExpression::MINUS;
+            break;
+        case Token::kNot:
+            type = UnaryExpression::NOT;
+            break;
+        case Token::kQuestion:
+            type = UnaryExpression::TRY;
+            break;
+        default:
+            throw std::runtime_error("parse failed! Expected unary operator");
+    }
+    
+    consume();
+    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenUnaryBP(token)));
+    
+    return std::make_shared<UnaryExpression>(type, std::move(expression));
+}
+
+std::shared_ptr<BorrowExpression> Parser::parseBorrowExpression() {
+    bool is_double = false;
+    bool is_mutable = false;
+    
+    // Check for double borrow (&&)
+    if (peek() == Token::kAnd) {
+        consume();
+        if (peek() == Token::kAnd) {
+            is_double = true;
+            consume();
+        } else {
+            // Single borrow, but we need to put back the first &
+            pos--;
+        }
+    } else {
+        throw std::runtime_error("parse failed! Expected & for borrow expression");
+    }
+    
+    // Check for mut keyword
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume();
+    }
+    
+    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenLeftBP(Token::kAnd)));
+    
+    return std::make_shared<BorrowExpression>(is_double, is_mutable, std::move(expression));
+}
+
+std::shared_ptr<DereferenceExpression> Parser::parseDereferenceExpression() {
+    if (peek() != Token::kStar) {
+        throw std::runtime_error("parse failed! Expected * for dereference expression");
+    }
+    
+    consume();
+    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenLeftBP(Token::kStar)));
+    
+    return std::make_shared<DereferenceExpression>(std::move(expression));
+}
+
+// Binary and assignment expressions
+std::shared_ptr<AssignmentExpression> Parser::parseAssignmentExpression(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs) {
+    return std::make_shared<AssignmentExpression>(std::move(lhs), std::move(rhs));
+}
+
+std::shared_ptr<CompoundAssignmentExpression> Parser::parseCompoundAssignmentExpression(CompoundAssignmentExpression::CompoundAssignmentType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs) {
+    return std::make_shared<CompoundAssignmentExpression>(type, std::move(lhs), std::move(rhs));
+}
+
+std::shared_ptr<BinaryExpression> Parser::parseBinaryExpression(BinaryExpression::BinaryType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs) {
+    return std::make_shared<BinaryExpression>(type, std::move(lhs), std::move(rhs));
+}
+
+// Type cast expression
+std::shared_ptr<TypeCastExpression> Parser::parseTypeCastExpression(std::shared_ptr<Expression> expression, std::shared_ptr<Type> type) {
+    return std::make_shared<TypeCastExpression>(std::move(expression), std::move(type));
 }

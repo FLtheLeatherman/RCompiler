@@ -6,6 +6,25 @@
 
 class Parser {
 private:
+    enum BindingPower {
+        PATH_ACCESS = 200,
+        CALL_INDEX = 190,
+        STRUCT_EXPR = 180,
+        UNARY = 170,
+        TYPE_CAST = 160,
+        MUL_DIV_MOD = 150,
+        ADD_SUB = 140,
+        SHIFT = 130,
+        BIT_AND = 120,
+        BIT_XOR = 110,
+        BIT_OR = 100,
+        COMPARISON = 90,
+        LOGIC_AND = 80,
+        LOGIC_OR = 70,
+        ASSIGNMENT = 60,
+        FLOW_CONTROL = 50
+    };
+
     std::vector<std::pair<Token, std::string>> tokens;
     size_t pos = 0;
 public:
@@ -16,6 +35,13 @@ public:
     std::string get_string();
     void consume();
     void match(Token);
+
+    // Pratt parsing functions
+    int getTokenLeftBP(Token);
+    int getTokenRightBP(Token);
+    int getTokenUnaryBP(Token);
+    std::shared_ptr<ASTNode> parsePrattExpression(int current_bp);
+    std::shared_ptr<ASTNode> parsePrattPrefix();
 
     std::shared_ptr<Crate> parseCrate();
 
@@ -79,6 +105,7 @@ public:
     std::shared_ptr<ArrayExpression> parseArrayExpression();
     std::shared_ptr<ArrayElements> parseArrayElements();
     std::shared_ptr<IndexExpression> parseIndexExpression();
+    std::shared_ptr<IndexExpression> parseIndexExpressionFromInfix(std::shared_ptr<Expression> lhs);
     
     // Struct expressions
     std::shared_ptr<StructExpression> parseStructExpression();
@@ -87,10 +114,26 @@ public:
     
     // Call expressions
     std::shared_ptr<CallExpression> parseCallExpression();
+    std::shared_ptr<CallExpression> parseCallExpressionFromInfix(std::shared_ptr<Expression> lhs);
     std::shared_ptr<CallParams> parseCallParams();
     
     // Method call, field, and path expressions
     std::shared_ptr<MethodCallExpression> parseMethodCallExpression();
+    std::shared_ptr<MethodCallExpression> parseMethodCallExpressionFromInfix(std::shared_ptr<Expression> lhs);
     std::shared_ptr<FieldExpression> parseFieldExpression();
+    std::shared_ptr<FieldExpression> parseFieldExpressionFromInfix(std::shared_ptr<Expression> lhs);
     std::shared_ptr<PathExpression> parsePathExpression();
+    
+    // Unary expressions
+    std::shared_ptr<UnaryExpression> parseUnaryExpression();
+    std::shared_ptr<BorrowExpression> parseBorrowExpression();
+    std::shared_ptr<DereferenceExpression> parseDereferenceExpression();
+    
+    // Binary and assignment expressions
+    std::shared_ptr<AssignmentExpression> parseAssignmentExpression(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs);
+    std::shared_ptr<CompoundAssignmentExpression> parseCompoundAssignmentExpression(CompoundAssignmentExpression::CompoundAssignmentType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs);
+    std::shared_ptr<BinaryExpression> parseBinaryExpression(BinaryExpression::BinaryType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs);
+    
+    // Type cast expression
+    std::shared_ptr<TypeCastExpression> parseTypeCastExpression(std::shared_ptr<Expression> expression, std::shared_ptr<Type> type);
 };

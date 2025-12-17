@@ -8,104 +8,163 @@
 - [x] 实现各个具体字面量类型的解析函数：`parseCharLiteral()`、`parseStringLiteral()`、`parseRawStringLiteral()`、`parseCStringLiteral()`、`parseRawCStringLiteral()`、`parseIntegerLiteral()`、`parseBoolLiteral()`
 - [x] 为 Pratt parsing 做准备，删除了 `LiteralExpression` 组合类
 
-#### 1.1 基础表达式类型
+#### 1.1 基础表达式类型（已完成）
 - [x] 实现 `PathExpression` 解析
-- [ ] 实现 `OperatorExpression` 解析（包括运算符优先级）
+- [x] 实现 `AssignmentExpression`、`CompoundAssignmentExpression`、`BinaryExpression`、`TypeCastExpression` 解析
 - [x] 实现 `GroupedExpression` 解析（括号表达式）
+- [x] 实现 Pratt parsing 基础设施（BindingPower 枚举和绑定力函数）
 
-#### 1.2 复合表达式类型
+#### 1.2 复合表达式类型（已完成）
 - [x] 实现 `ArrayExpression` 解析
 - [x] 实现 `IndexExpression` 解析
 - [x] 实现 `StructExpression` 解析
 - [x] 实现 `CallExpression` 解析
 - [x] 实现 `MethodCallExpression` 解析
 - [x] 实现 `FieldExpression` 解析
+- [x] 实现中缀表达式解析函数：`parseCallExpressionFromInfix()`、`parseMethodCallExpressionFromInfix()`、`parseFieldExpressionFromInfix()`、`parseIndexExpressionFromInfix()`
 
-#### 1.3 控制流表达式
-- [x] 实现 `ContinueExpression` 解析
-- [x] 实现 `BreakExpression` 解析
-- [x] 实现 `ReturnExpression` 解析
+#### 1.3 控制流表达式（已完成）
+- [x] 实现 `ContinueExpression`、`BreakExpression`、`ReturnExpression` 解析
 - [x] 实现 `IfExpression` 解析
+- [x] 实现 `Condition` 类，专门处理 if 条件
 
-### 2. 完成块表达式和循环
-- [x] 实现 `BlockExpression` 解析（语句块）
-- [x] 实现 `LoopExpression` 解析（循环表达式）
-- [x] 实现 `IfExpression` 解析（条件表达式）
-- [x] 完善 `ExpressionWithBlock` 解析（支持 BlockExpression、LoopExpression、IfExpression）
+#### 1.4 块表达式和循环（已完成）
+- [x] 实现 `BlockExpression` 解析，支持 `{ Statements? }` 语法
+- [x] 实现 `LoopExpression` 解析
+- [x] 实现 `InfiniteLoopExpression` 解析，支持 `loop { }` 语法
+- [x] 实现 `PredicateLoopExpression` 解析，支持 `while condition { }` 语法
 
-### 3. 完成类型解析功能
-#### 3.1 基础类型
-- [ ] 实现 `Type` 解析（类型路径）
+#### 1.5 Pratt parsing 完整集成（已完成）
+- [x] 完全集成 `parsePrattExpression()` 函数，支持所有中缀表达式类型
+- [x] 修正了 token 消耗逻辑错误，确保不同类型的中缀表达式使用正确的解析策略
+- [x] 实现了完整的 switch 语句处理所有运算符类型
+- [x] 支持正确的运算符优先级和结合性
+
+### 2. 完成类型解析功能
+#### 2.1 基础类型（未完成）
+- [ ] 实现 `TypePath` 解析（简单路径和泛型参数）
 - [ ] 实现 `ReferenceType` 解析（引用类型 &T, &mut T）
 - [ ] 实现 `ArrayType` 解析（数组类型 [T; N]）
 - [ ] 完善 `UnitType` 解析（单元类型 ()）
 
-#### 3.2 复杂类型
+#### 2.2 复杂类型（未完成）
 - [ ] 实现元组类型解析
 - [ ] 实现函数指针类型解析
 - [ ] 实现泛型类型参数解析
+- [ ] 实现生命周期参数解析
+- [ ] 实现动态大小类型解析
 
-### 4. 完成模式解析功能
-- [ ] 实现 `PatternNoTopAlt` 解析
-- [ ] 支持字面量模式
-- [ ] 支持标识符模式
-- [ ] 支持通配符模式
-- [ ] 支持结构体模式
-- [ ] 支持枚举模式
+### 3. 完成模式解析功能
+#### 3.1 基础模式（未完成）
+- [ ] 实现字面量模式（字面量）
+- [ ] 实现标识符模式（变量绑定）
+- [ ] 实现通配符模式（_）
+- [ ] 实现或模式（|）
 
-### 5. 完善表达式解析集成
-- [ ] 更新 `parseExpressionWithoutBlock` 支持所有无块表达式
-- [ ] 更新 `parseExpressionWithBlock` 支持所有有块表达式
-- [ ] 实现表达式优先级处理
-- [ ] 添加表达式类型检查
+#### 3.2 复杂模式（未完成）
+- [ ] 实现结构体模式
+- [ ] 实现枚举模式
+- [ ] 实现切片模式
+- [ ] 实现范围模式（..）
 
-## 中期目标
+### 4. 完成名称系统
+#### 4.1 基础名称（未完成）
+- [ ] 实现 namespace 解析（use 语句）
+- [ ] 实现 scope 解析（作用域和可见性）
+- [ ] 实现 preludes 解析（外部 crate 导入）
 
-### 6. 实现访问者模式
-- [ ] 设计并实现 `ASTVisitor` 基类
-- [ ] 为所有 AST 节点实现 visit 方法
-- [ ] 实现具体的访问者类：
-  - [ ] `ASTPrinter`：用于打印 AST 结构
-  - [ ] `TypeChecker`：用于类型检查
-  - [ ] `CodeGenerator`：用于代码生成
+#### 4.2 高级名称（未完成）
+- [ ] 实现绝对路径解析
+- [ ] 实现相对路径解析
+- [ ] 实现泛型参数解析
+- [ ] 实现关联类型解析
+- [ ] 实现 Trait 相关名称解析
 
-### 7. 错误处理和恢复
+### 5. 实现访问者模式
+#### 5.1 设计并实现 `ASTVisitor` 基类
+- [ ] 设计并实现 `ASTPrinter`：用于打印 AST 结构
+- [ ] 设计并实现 `TypeChecker`：用于类型检查和推断
+- [ ] 设计并实现 `CodeGenerator`：用于生成中间表示或目标代码
+
+### 6. 错误处理和恢复
+#### 6.1 基础错误处理（未完成）
 - [ ] 改进解析错误信息
 - [ ] 实现错误恢复机制
 - [ ] 添加错误位置信息
 - [ ] 实现警告系统
 
-### 8. 测试和验证
+#### 6.2 高级错误处理（未完成）
+- [ ] 实现多错误收集和报告
+- [ ] 实现错误恢复策略
+- [ ] 实现上下文相关错误处理
+
+### 7. 测试和验证
+#### 7.1 基础测试（未完成）
 - [ ] 编写单元测试
 - [ ] 编写集成测试
 - [ ] 添加基准测试
 - [ ] 创建测试用例集合
 
-## 长期目标
+#### 7.2 高级测试（未完成）
+- [ ] 实现模糊测试
+- [ ] 实现性能测试
+- [ ] 实现回归测试
+- [ ] 实现兼容性测试
 
-### 9. 语义分析
-- [ ] 实现符号表管理
-- [ ] 实现作用域分析
-- [ ] 实现类型推断
-- [ ] 实现所有权检查
+### 8. 代码生成
+#### 8.1 中间表示（未完成）
+- [ ] 设计并实现中间表示（IR）
+- [ ] 实现基础优化 passes
+- [ ] 实现控制流图生成
+- [ ] 实现数据流分析
 
-### 10. 代码生成
-- [ ] 设计中间表示（IR）
+#### 8.2 目标代码生成（未完成）
 - [ ] 实现 LLVM 后端
 - [ ] 实现优化 passes
-- [ ] 生成可执行文件
+- [ ] 实现目标代码生成
+- [ ] 实现内联汇编支持
+- [ ] 实现调试信息生成
 
-### 11. 标准库支持
+### 9. 标准库支持
+#### 9.1 基础库（未完成）
 - [ ] 实现基础类型和函数
 - [ ] 实现 I/O 操作
 - [ ] 实现集合类型
+- [ ] 实现字符串操作
+- [ ] 实现错误处理
+
+#### 9.2 高级库（未完成）
 - [ ] 实现并发原语
+- [ ] 实现网络编程支持
+- [ ] 实现文件系统操作
+- [ ] 实现时间处理
+
+### 10. 工具链和集成
+#### 10.1 构建系统（未完成）
+- [ ] 配置 CMake 构建系统
+- [ ] 添加包管理支持
+- [ ] 实现持续集成
+- [ ] 配置文档生成
+
+#### 10.2 开发工具（未完成）
+- [ ] 配置开发环境
+- [ ] 实现代码格式化工具
+- [ ] 添加调试和分析工具
 
 ## 开发优先级
 
-1. **高优先级**：完成基础表达式和类型解析（目标 1.1-4）
-2. **中优先级**：实现访问者模式和错误处理（目标 5-7）
-3. **低优先级**：测试、语义分析和代码生成（目标 8-11）
+1. **高优先级**：完成类型系统、模式系统、名称系统
+2. **中优先级**：实现访问者模式、错误处理、测试框架
+3. **低优先级**：代码生成、标准库、构建系统
+
+## 里程碑
+
+- **v0.1**：完成基础语法解析（词法分析器 + 基础语法分析器）
+- **v0.2**：完成表达式解析和类型系统
+- **v0.3**：完成模式解析和名称系统
+- **v0.4**：实现访问者模式和代码生成
+- **v0.5**：实现标准库支持和优化
+- **v1.0**：可用的 Rust 编译器
 
 ## 技术债务
 
@@ -114,82 +173,16 @@
 - [ ] 改进代码文档
 - [ ] 添加更多配置选项
 - [ ] 扩展字面量表达式以支持复合字面量（如带有后缀的数字字面量）
+- [ ] 移除调试代码和 std::cerr 输出
+- [ ] 添加更友好的错误消息
 
-## 里程碑
+## 当前架构
 
-- **v0.1**：完成基础语法解析（目标 1.1-4）
-- **v0.2**：实现访问者模式和基础工具（目标 5-7）
-- **v0.3**：完整的解析器和类型检查器（目标 8）
-- **v0.4**：基础代码生成（目标 9-10）
-- **v1.0**：可用的编译器（目标 11）
+- 采用访问者模式设计 AST
+- 使用智能指针（shared_ptr）管理节点生命周期
+- 模块化设计，分离头文件和实现文件
+- 支持 C++17 标准
+- 完整的 Rust 语法子集支持
+- 高效的 Pratt parsing 表达式解析系统
 
-## 已完成功能
-
-### 表达式类层次结构重构
-- 所有表达式类现在都继承自 `Expression` 基类
-- 包括字面量类、控制流表达式、复合表达式等
-- 为 Pratt parsing 做好了架构准备
-
-### 字面量表达式系统
-- 所有 Rust 字面量类型的支持，直接继承 Expression，包含各自的值
-- 完整的解析函数集合，支持所有字面量类型的独立解析
-- 为 Pratt parsing 做准备，删除了 `LiteralExpression` 组合类
-
-### Condition 和 IfExpression 系统
-- 实现了 `Condition` 类，继承自 Expression，专门处理 if 条件
-- 实现了 `IfExpression` 类，包含条件、then 块和可选的 else 分支
-- 支持条件表达式（但不能是 StructExpression，只可能出现在 ExpressionWithoutBlock 中），通过专门的 `parseCondition()` 函数处理
-- 支持 `if condition { }` 和 `if condition { } else { }` 以及 `if condition { } else if { }` 形式
-- `else_branch` 现在是 `Expression` 类型，支持 `BlockExpression` 或另一个 `IfExpression`
-- 集成到 `parseExpressionWithoutBlock()` 中
-
-### ReturnExpression 系统
-- 实现了 `ReturnExpression` 类，包含可选的表达式子节点
-- 支持 `return;` 和 `return expression;` 两种形式
-- 集成到 `parseExpressionWithoutBlock()` 中
-
-### 循环表达式系统
-- 实现了 `LoopExpression` 类，包含 InfiniteLoopExpression 或 PredicateLoopExpression 子节点
-- 实现了 `InfiniteLoopExpression` 类，支持 `loop { }` 形式的无限循环
-- 实现了 `PredicateLoopExpression` 类，支持 `while condition { }` 形式的条件循环
-- 集成到 `parseExpressionWithBlock()` 中
-
-### 控制流表达式系统
-- 实现了 `BreakExpression` 类，支持可选的表达式子节点，支持 `break;` 和 `break expression;` 两种形式
-- 实现了 `ContinueExpression` 类，支持 `continue;` 形式
-- 已实现但等待 Pratt parsing 系统集成
-
-### 表达式结构重构
-- 重新定义了 `ExpressionWithBlock` 的正则表达式：BlockExpression | LoopExpression | IfExpression
-- 更新了 `parseExpressionWithBlock()` 函数以正确支持这三种表达式类型
-- 简化了 `parseExpressionWithoutBlock()` 函数，为未来的 Pratt parsing 实现做准备
-- `IfExpression` 从 `ExpressionWithoutBlock` 移动到 `ExpressionWithBlock` 中，符合 Rust 语法规范
-
-### BlockExpression 系统
-- 实现了 `Statements` 类，支持 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock 的解析
-- 实现了 `parseStatements()` 函数，按照要求先尝试 parseStatement，失败时尝试 parseExpressionWithoutBlock
-- 实现了 `parseBlockExpression()` 函数，支持 `{ Statements? }` 语法
-- 集成到 `parseExpressionWithBlock()` 中，完善了有块表达式的解析能力
-
-### GroupedExpression、ArrayExpression、IndexExpression、StructExpression 和 CallExpression 系统
-- 实现了 `GroupedExpression` 类，继承自 Expression，包含一个 Expression 成员变量，支持 `( Expression )` 语法
-- 实现了 `ArrayExpression` 类，继承自 Expression，包含 ArrayElements 成员变量，支持 `[ ArrayElements? ]` 语法
-- 实现了 `ArrayElements` 类，继承自 ASTNode，包含表达式向量和分隔类型标志，支持两种语法：
-  - `Expression ( , Expression )* ,?`（逗号分隔）
-  - `Expression ; Expression`（分号分隔）
-- 实现了 `IndexExpression` 类，继承自 Expression，包含基础表达式和索引表达式两个成员变量，支持 `Expression [ Expression ]` 语法
-- 实现了 `StructExpression` 类，继承自 Expression，包含 PathInExpression 和 StructExprFields 成员变量，支持 `PathInExpression { StructExprFields? }` 语法
-- 实现了 `StructExprFields` 类，继承自 ASTNode，包含 StructExprField 向量，支持 `StructExprField ( , StructExprField )* ,?` 语法
-- 实现了 `StructExprField` 类，继承自 ASTNode，包含标识符和表达式，支持 `IDENTIFIER : Expression` 语法
-- 实现了 `CallExpression` 类，继承自 Expression，包含表达式和 CallParams 成员变量，支持 `Expression ( CallParams? )` 语法
-- 实现了 `CallParams` 类，继承自 ASTNode，包含表达式向量，支持 `Expression ( , Expression )* ,?` 语法
-- 实现了 `parseGroupedExpression()` 函数，解析括号表达式
-- 实现了 `parseArrayExpression()` 函数，解析数组表达式
-- 实现了 `parseArrayElements()` 函数，解析数组元素列表
-- 实现了 `parseIndexExpression()` 函数，解析索引表达式
-- 实现了 `parseStructExpression()` 函数，解析结构体表达式
-- 实现了 `parseStructExprFields()` 函数，解析结构体字段列表
-- 实现了 `parseStructExprField()` 函数，解析结构体字段
-- 实现了 `parseCallExpression()` 函数，解析函数调用表达式
-- 实现了 `parseCallParams()` 函数，解析函数调用参数列表
-- 这些表达式已准备好集成到未来的 Pratt parsing 系统中
+这个项目为 Rust 编译器的前端开发奠定了坚实的基础，已经具备了处理复杂 Rust 代码的能力。

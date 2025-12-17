@@ -52,10 +52,10 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
 - `ExpressionStatement`: 表达式语句
 - `Statements`: 语句列表，包含 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock
 - `Expression`: 表达式，分为 ExpressionWithoutBlock 和 ExpressionWithBlock
-- `ExpressionWithoutBlock`: 无块表达式（字面量、路径表达式、操作符表达式等，将使用 Pratt parsing）
-- `ExpressionWithBlock`: 有块表达式（BlockExpression、LoopExpression、IfExpression）
+- `ExpressionWithoutBlock`: 无块表达式
+- `ExpressionWithBlock`: 有块表达式
 
-#### 具体表达式类型
+#### 字面量表达式节点
 - `CharLiteral`: 字符字面量，包含字符串值（继承 Expression）
 - `StringLiteral`: 字符串字面量，包含字符串值（继承 Expression）
 - `RawStringLiteral`: 原始字符串字面量，包含字符串值（继承 Expression）
@@ -63,45 +63,60 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
 - `RawCStringLiteral`: 原始 C 字符串字面量，包含字符串值（继承 Expression）
 - `IntegerLiteral`: 整数字面量，包含字符串值（继承 Expression）
 - `BoolLiteral`: 布尔字面量，包含布尔值（继承 Expression）
+
+#### 路径和字段访问节点
 - `PathExpression`: 路径表达式（已实现）
-- `OperatorExpression`: 操作符表达式（未实现）
+- `OperatorExpression`: 操作符表达式（已实现）
 - `GroupedExpression`: 分组表达式（已实现，包含 Expression 成员变量）
 - `ArrayExpression`: 数组表达式（已实现，包含 ArrayElements 成员变量）
+- `ArrayElements`: 数组元素列表，包含表达式向量和分隔类型标志
 - `IndexExpression`: 索引表达式（已实现）
 - `StructExpression`: 结构体表达式（已实现）
-- `CallExpression`: 函数调用表达式（已实现）
-- `MethodCallExpression`: 方法调用表达式（已实现）
-- `FieldExpression`: 字段访问表达式（已实现）
-- `ContinueExpression`: continue 表达式（未实现）
-- `BreakExpression`: break 表达式（未实现）
-- `ReturnExpression`: return 表达式，包含可选的表达式子节点
-- `BlockExpression`: 块表达式，包含可选的 Statements（已实现）
-- `LoopExpression`: 循环表达式，包含 InfiniteLoopExpression 或 PredicateLoopExpression（已实现）
-- `InfiniteLoopExpression`: 无限循环表达式，包含 BlockExpression（已实现）
-- `PredicateLoopExpression`: 条件循环表达式，包含条件和 BlockExpression（已实现）
-- `Condition`: 条件表达式，包含表达式（不能是 StructExpression）
-- `IfExpression`: if 表达式，包含条件、then 块和可选的 else 分支
-
-#### 数组和分组相关节点
-- `ArrayElements`: 数组元素列表，包含表达式向量和分隔类型标志（逗号或分号分隔）
-
-#### 结构体表达式相关节点
 - `StructExprFields`: 结构体字段列表，包含 StructExprField 向量
 - `StructExprField`: 结构体字段，包含标识符和表达式
-
-#### 函数调用相关节点
+- `CallExpression`: 函数调用表达式（已实现）
 - `CallParams`: 函数调用参数列表，包含表达式向量
+- `MethodCallExpression`: 方法调用表达式（已实现）
+- `FieldExpression`: 字段访问表达式（已实现）
 
-#### 路径和字段访问相关节点
+#### 控制流表达式节点
+- `ContinueExpression`: continue 表达式（已实现）
+- `BreakExpression`: break 表达式（已实现，包含可选的表达式子节点）
+- `ReturnExpression`: return 表达式（已实现，包含可选的表达式子节点）
+- `BlockExpression`: 块表达式（已实现，包含可选的 Statements）
+- `LoopExpression`: 循环表达式（已实现，包含 InfiniteLoopExpression 或 PredicateLoopExpression 子节点）
+- `InfiniteLoopExpression`: 无限循环表达式（已实现，包含 BlockExpression）
+- `PredicateLoopExpression`: 条件循环表达式（已实现，包含条件和 BlockExpression）
+- `Condition`: 条件表达式（已实现，包含表达式（不能是 StructExpression））
+- `IfExpression`: if 表达式（已实现，包含条件、then 块和可选的 else 分支）
 
-#### 类型和模式节点
+#### 一元和类型转换表达式节点
+- `UnaryExpression`: 一元表达式（已实现）
+  - 包含 UnaryType 枚举（MINUS, NOT, TRY）
+- `BorrowExpression`: 借用表达式（已实现）
+  - 支持单借用（&）和双借用（&&），以及可变性（mut）
+- `DereferenceExpression`: 解引用表达式（已实现）
+
+#### 中缀表达式节点
+- `AssignmentExpression`: 赋值表达式（已实现）
+  - 包含 lhs 和 rhs 成员变量，支持 `lhs = rhs` 语法
+- `CompoundAssignmentExpression`: 复合赋值表达式（已实现）
+  - 包含 CompoundAssignmentType 枚举，支持 `+=`, `-=`, `*=`, `/=`, `%=`, `^=`, `&=`, `|=`, `<<=`, `>>=` 运算符
+- `BinaryExpression`: 二元表达式（已实现）
+  - 包含 BinaryType 枚举，支持算术、位运算、比较和逻辑运算符
+- `TypeCastExpression`: 类型转换表达式（已实现）
+  - 包含 expression 和 type 成员变量，支持 `expression as type` 语法
+
+#### 模式和类型节点
 - `PatternNoTopAlt`: 模式（未实现）
-- `Type`: 类型，可包含 TypePath、ReferenceType、ArrayType、UnitType
+- `Type`: 类型，可包含 TypePath、ReferenceType、ArrayType、UnitType（未完全实现）
 - `ReferenceType`: 引用类型（未实现）
 - `ArrayType`: 数组类型（未实现）
-- `UnitType`: 单元类型
-- `PathInExpression`: 表达式中的路径
-- `PathIdentSegment`: 路径标识符段
+- `UnitType`: 单元类型（已实现）
+
+#### 路径相关节点
+- `PathInExpression`: 表达式中的路径（已实现）
+- `PathIdentSegment`: 路径标识符段，支持标识符、Self 和 self（已实现）
 
 ### 3. 语法分析器接口定义（include/parser.hpp）
 Parser 类已定义完整的解析函数接口：
@@ -112,10 +127,18 @@ Parser 类已定义完整的解析函数接口：
 - `consume()`: 消费当前 token
 - `match(Token)`: 匹配指定 token
 
+#### Pratt parsing 支持
+- `BindingPower` 枚举：定义了从 PATH_ACCESS (200) 到 FLOW_CONTROL (50) 的完整绑定力优先级
+- `getTokenLeftBP()`: 获取当前运算符的左绑定力
+- `getTokenRightBP()`: 获取当前运算符的右绑定力（对于左结合运算符返回左绑定力+1）
+- `getTokenUnaryBP()`: 获取一元运算符的绑定力
+- `parsePrattExpression(int current_bp)`: Pratt parsing 主函数（已实现）
+- `parsePrattPrefix()`: Pratt parsing 前缀解析函数（已实现）
+
 #### 主要解析函数（已实现）
 - `parseCrate()`: 解析整个 crate
 - `parseItem()`: 解析项目
-- `parseFunction()`: 解析函数
+- `parseFunction()`: 解析函数，支持 const 函数、函数名、参数列表、返回类型和函数体
 - `parseStruct()`: 解析结构体
 - `parseEnumeration()`: 解析枚举
 - `parseConstantItem()`: 解析常量项
@@ -125,7 +148,7 @@ Parser 类已定义完整的解析函数接口：
 - `parseSelfParam()`: 解析 self 参数
 - `parseShorthandSelf()`: 解析简写 self
 - `parseTypedSelf()`: 解析类型化 self
-- `parseFunctionParam()`: 解析函数参数
+- `parseFunctionParam()`: 解析普通函数参数
 - `parseFunctionReturnType()`: 解析函数返回类型
 - `parseStructStruct()`: 解析结构体定义
 - `parseStructFields()`: 解析结构体字段
@@ -135,12 +158,18 @@ Parser 类已定义完整的解析函数接口：
 - `parseAssociatedItem()`: 解析关联项
 - `parseInherentImpl()`: 解析固有实现
 - `parseTraitImpl()`: 解析 trait 实现
+
+#### 语句和表达式解析函数（已实现）
 - `parseStatement()`: 解析语句
 - `parseLetStatement()`: 解析 let 语句
 - `parseExpressionStatement()`: 解析表达式语句
+- `parseStatements()`: 解析语句列表
 - `parseExpression()`: 解析表达式
-- `parsePathInExpression()`: 解析表达式中的路径
-- `parsePathIdentSegment()`: 解析路径标识符段
+- `parseExpressionWithoutBlock()`: 解析无块表达式
+- `parseExpressionWithBlock()`: 解析有块表达式
+- `parseBlockExpression()`: 解析块表达式，支持 `{ Statements? }` 语法
+
+#### 字面量解析函数（已实现）
 - `parseCharLiteral()`: 解析字符字面量
 - `parseStringLiteral()`: 解析字符串字面量
 - `parseRawStringLiteral()`: 解析原始字符串字面量
@@ -148,82 +177,160 @@ Parser 类已定义完整的解析函数接口：
 - `parseRawCStringLiteral()`: 解析原始 C 字符串字面量
 - `parseIntegerLiteral()`: 解析整数字面量
 - `parseBoolLiteral()`: 解析布尔字面量
-- `parseCondition()`: 解析条件表达式（检查不能是 StructExpression）
-- `parseIfExpression()`: 解析 if 表达式
-- `parseReturnExpression()`: 解析 return 表达式
-- `parseLoopExpression()`: 解析循环表达式（已实现）
-- `parseInfiniteLoopExpression()`: 解析无限循环表达式（已实现）
-- `parsePredicateLoopExpression()`: 解析条件循环表达式（已实现）
-- `parseBreakExpression()`: 解析 break 表达式（已实现）
-- `parseContinueExpression()`: 解析 continue 表达式（已实现）
 
-#### 待实现的解析函数
-- `parseExpressionWithoutBlock()`: 解析无块表达式（部分实现，支持 if 和 return 表达式）
-- `parseExpressionWithBlock()`: 解析有块表达式（支持 IfExpression、LoopExpression 和 BlockExpression）
-- `parseBlockExpression()`: 解析块表达式（支持 `{ Statements? }` 语法）
-- `parseStatements()`: 解析语句列表（支持 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock）
+#### 控制流表达式解析函数（已实现）
+- `parseReturnExpression()`: 解析 return 表达式
+- `parseIfExpression()`: 解析 if 表达式
+- `parseCondition()`: 解析条件表达式（检查不能是 StructExpression）
+- `parseLoopExpression()`: 解析循环表达式
+- `parseInfiniteLoopExpression()`: 解析无限循环表达式
+- `parsePredicateLoopExpression()`: 解析条件循环表达式
+- `parseBreakExpression()`: 解析 break 表达式
+- `parseContinueExpression()`: 解析 continue 表达式
+
+#### 复合表达式解析函数（已实现）
+- `parseGroupedExpression()`: 解析分组表达式，支持 `( Expression )` 语法
+- `parseArrayExpression()`: 解析数组表达式，支持 `[ ArrayElements? ]` 语法
+- `parseArrayElements()`: 解析数组元素，支持两种语法：
+  - `Expression ; Expression`（分号分隔）
+  - `Expression ( , Expression )* ,?`（逗号分隔）
+- `parseIndexExpression()`: 解析索引表达式，支持 `Expression [ Expression ]` 语法
+- `parseStructExpression()`: 解析结构体表达式，支持 `PathInExpression { StructExprFields? }` 语法
+- `parseStructExprFields()`: 解析结构体字段列表，支持 `StructExprField ( , StructExprField )* ,?` 语法
+- `parseStructExprField()`: 解析结构体字段，支持 `IDENTIFIER : Expression` 语法
+- `parseCallExpression()`: 解析函数调用表达式，支持 `Expression ( CallParams? )` 语法
+- `parseCallParams()`: 解析函数调用参数，支持 `Expression ( , Expression )* ,?` 语法
+- `parseMethodCallExpression()`: 解析方法调用表达式，支持 `Expression . PathIdentSegment ( CallParams? )` 语法
+- `parseFieldExpression()`: 解析字段访问表达式，支持 `Expression . IDENTIFIER` 语法
+- `parsePathExpression()`: 解析路径表达式
+- `parsePathInExpression()`: 解析表达式中的路径
+- `parsePathIdentSegment()`: 解析路径标识符段
+
+#### 一元表达式解析函数（已实现）
+- `parseUnaryExpression()`: 解析一元表达式，支持 `-`, `!`, `?` 运算符
+- `parseBorrowExpression()`: 解析借用表达式，支持 `&`, `&&`, `mut` 关键字
+- `parseDereferenceExpression()`: 解析解引用表达式，支持 `*` 运算符
+
+#### 中缀表达式解析函数（已实现）
+- `parseAssignmentExpression()`: 解析赋值表达式，支持传入 lhs 和 rhs
+- `parseCompoundAssignmentExpression()`: 解析复合赋值表达式，支持类型和 lhs、rhs 参数
+- `parseBinaryExpression()`: 解析二元表达式，支持类型和 lhs、rhs 参数
+- `parseTypeCastExpression()`: 解析类型转换表达式，支持表达式和类型参数
+- **新增的中缀表达式解析函数**：
+  - `parseCallExpressionFromInfix()`: 解析函数调用的中缀版本（传入 lhs）
+  - `parseMethodCallExpressionFromInfix()`: 解析方法调用的中缀版本（传入 lhs）
+  - `parseFieldExpressionFromInfix()`: 解析字段访问的中缀版本（传入 lhs）
+  - `parseIndexExpressionFromInfix()`: 解析索引访问的中缀版本（传入 lhs）
+
+#### 模式和类型解析函数
 - `parsePatternNoTopAlt()`: 解析模式（仅返回 nullptr）
 - `parseType()`: 解析类型（仅返回 nullptr）
-
-#### 新增实现的解析函数
-- `parseGroupedExpression()`: 解析分组表达式（支持 `( Expression )` 语法）
-- `parseArrayExpression()`: 解析数组表达式（支持 `[ ArrayElements? ]` 语法）
-- `parseArrayElements()`: 解析数组元素（支持 `Expression ( , Expression )* ,?` 和 `Expression ; Expression` 语法）
-- `parseIndexExpression()`: 解析索引表达式（支持 `Expression [ Expression ]` 语法）
-- `parseStructExpression()`: 解析结构体表达式（支持 `PathInExpression { StructExprFields? }` 语法）
-- `parseStructExprFields()`: 解析结构体字段列表（支持 `StructExprField ( , StructExprField )* ,?` 语法）
-- `parseStructExprField()`: 解析结构体字段（支持 `IDENTIFIER : Expression` 语法）
-- `parseCallExpression()`: 解析函数调用表达式（支持 `Expression ( CallParams? )` 语法）
-- `parseCallParams()`: 解析函数调用参数（支持 `Expression ( , Expression )* ,?` 语法）
-- `parseMethodCallExpression()`: 解析方法调用表达式（支持 `Expression . PathIdentSegment ( CallParams? )` 语法）
-- `parseFieldExpression()`: 解析字段访问表达式（支持 `Expression . IDENTIFIER` 语法）
-- `parsePathExpression()`: 解析路径表达式（支持 `PathInExpression` 语法）
 
 ### 4. 语法分析器实现（src/parser.cpp）
 已实现大部分解析功能：
 
 #### 已完整实现的功能
 1. **基础工具函数**：peek、get_string、consume、match
-2. **顶层解析**：parseCrate、parseItem
-3. **函数解析**：完整支持 const 函数、函数名、参数列表、返回类型、函数体
-4. **结构体解析**：支持单元结构体和带字段的结构体
-5. **枚举解析**：支持枚举定义和变体列表
-6. **常量项解析**：支持 const 项定义
-7. **Trait 解析**：支持 trait 定义和关联项
-8. **实现解析**：支持固有实现和 trait 实现
-9. **函数参数解析**：支持 self 参数（简写和类型化）和普通参数
-10. **语句解析**：支持空语句、let 语句、表达式语句和项目语句
-11. **路径解析**：支持表达式中的路径和路径标识符段
+2. **Pratt parsing 系统**：
+   - 完整的绑定力系统，支持所有 Rust 运算符的优先级
+   - `parsePrattPrefix()` 函数，支持所有前缀表达式类型
+   - `parsePrattExpression()` 函数，完整集成了所有中缀表达式处理：
+     - 函数调用：`lhs(...)`
+     - 索引访问：`lhs[index]`
+     - 方法调用和字段访问：`lhs.method(...)` 和 `lhs.field`
+     - 类型转换：`lhs as type`
+     - 赋值运算：`lhs = rhs`
+     - 复合赋值：`lhs op= rhs`（支持所有复合赋值运算符）
+     - 二元运算：`lhs op rhs`（支持所有算术、位运算、比较和逻辑运算符）
+   - 修正了 token 消耗逻辑，确保不同类型的中缀表达式使用正确的解析策略
+
+3. **顶层解析**：完整的 crate 和项目解析
+4. **函数解析**：支持 const 函数、完整参数列表、返回类型和函数体
+5. **结构体和枚举解析**：支持完整的定义语法
+6. **语句解析**：支持 let 语句、表达式语句和语句列表
+7. **表达式解析**：支持所有字面量、控制流、复合表达式
+8. **路径解析**：支持完整的路径语法
+9. **一元表达式解析**：支持所有一元运算符
+10. **错误处理**：使用异常机制，提供清晰的错误信息
 
 #### 实现特点
 - 使用递归下降解析方法
 - 支持错误处理，遇到解析错误会抛出异常
 - 使用智能指针管理内存
 - 支持可选语法元素的解析
+- 模块化设计，分离头文件和实现文件
+- 支持 C++17 标准
 
-#### 当前限制
-1. **表达式解析部分完成**：IfExpression、LoopExpression、InfiniteLoopExpression、PredicateLoopExpression 已实现并集成到 ExpressionWithBlock 中。ReturnExpression、BreakExpression、ContinueExpression 已实现但将集成到未来的 Pratt parsing 系统中。IfExpression 支持条件、then 块和可选的 else 分支，使用专门的 Condition 类来处理条件。LoopExpression 支持 `loop` 和 `while` 循环，BreakExpression 支持可选的表达式，ContinueExpression 不支持表达式。ExpressionWithBlock 现在正确支持 BlockExpression、LoopExpression、IfExpression 三种类型。ExpressionWithoutBlock 将使用 Pratt parsing 实现
-2. **类型解析未完成**：parseType 函数仅返回 nullptr
-3. **模式解析未完成**：parsePatternNoTopAlt 函数仅返回 nullptr
-4. **块表达式解析已完成**：parseBlockExpression 函数支持 `{ Statements? }` 语法，parseStatements 函数支持 Statement+ 或 Statement+ ExpressionWithoutBlock 或 ExpressionWithoutBlock 的解析
+### 5. 访问者模式基础（include/visitor.hpp）
+已定义访问者模式基础结构：
+- `ASTVisitor` 基类，包含纯虚函数 `visit(ASTNode&)`
+- 所有 AST 节点都继承自 `ASTNode` 并实现 `accept` 方法
+
+### 6. 工具文件（include/utils.hpp）
+已定义所有 AST 节点类的前向声明，确保编译通过
+
+### 7. 主程序（src/main.cpp）
+简单的主程序，用于测试 lexer 和 parser 的集成
 
 ## 项目架构
 - 采用访问者模式设计 AST
 - 使用智能指针（shared_ptr）管理节点生命周期
 - 模块化设计，分离头文件和实现文件
 - 支持 C++17 标准
+- 完整的 Rust 语法子集支持
+
+## 当前限制
+1. **表达式解析部分完成**：ExpressionWithoutBlock 的 Pratt parsing 已完全实现，但部分表达式类型（如 OperatorExpression）仍使用占位符
+2. **类型解析未完成**：parseType 函数仅返回 nullptr，需要实现完整的类型系统
+3. **模式解析未完成**：parsePatternNoTopAlt 函数仅返回 nullptr，需要实现模式匹配
+4. **访问者模式未实现**：需要实现具体的访问者类（如 ASTPrinter、TypeChecker、CodeGenerator）
 
 ## 下一步工作
-1. 将 GroupedExpression 和 ArrayExpression 集成到 ExpressionWithoutBlock 的 Pratt parsing 系统中
-2. 完成其他表达式解析功能（PathExpression、OperatorExpression 等）
-3. 完成类型解析功能
-4. 完成模式解析功能
-5. 实现访问者模式的具体访问者类
-6. 添加更多错误处理和恢复机制
-7. 编写测试用例验证解析器功能
+1. **完善类型系统**：
+   - 实现 TypePath 解析（简单路径和泛型参数）
+   - 实现 ReferenceType 解析（引用类型 &T, &mut T）
+   - 实现 ArrayType 解析（数组类型 [T; N]）
+   - 完善 UnitType 解析（单元类型 ()）
+
+2. **完善模式系统**：
+   - 实现字面量模式（字面量）
+   - 实现标识符模式（变量绑定）
+   - 实现通配符模式（_）
+   - 实现结构体模式
+   - 实现枚举模式
+   - 实现或模式（|）
+   - 实现范围模式（..）
+
+3. **完善名称系统**：
+   - 实现 namespace 解析（use 语句）
+   - 实现 scope 解析（作用域和可见性）
+   - 实现 preludes 解析（外部 crate 导入）
+   - 完善路径解析，支持绝对路径、相对路径、泛型参数等
+
+4. **实现访问者模式**：
+   - 设计并实现 ASTPrinter：用于打印 AST 结构
+   - 设计并实现 TypeChecker：用于类型检查和推断
+   - 设计并实现 CodeGenerator：用于生成中间表示或目标代码
+
+5. **错误处理改进**：
+   - 实现错误恢复机制
+   - 添加错误位置信息
+   - 实现警告系统
+   - 提供更友好的错误消息
+
+6. **测试和验证**：
+   - 编写单元测试
+   - 编写集成测试
+   - 添加基准测试
+   - 创建测试用例集合
 
 ## 技术亮点
 - 完整的 Rust 语法子集支持
 - 清晰的 AST 节点层次结构
+- 高效的 Pratt parsing 表达式解析系统
 - 模块化的解析器设计
 - 良好的内存管理策略
+- 完整的运算符优先级处理
+- 支持复杂的嵌套表达式解析
+
+这个项目为 Rust 编译器的前端开发奠定了坚实的基础，已经具备了处理复杂 Rust 代码的能力。

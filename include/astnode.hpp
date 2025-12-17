@@ -454,6 +454,55 @@ public:
     }
 };
 
+class UnaryExpression : public Expression {
+public:
+    enum UnaryType {
+        MINUS,      // -
+        NOT,         // !
+        TRY          // ?
+    };
+    
+private:
+    UnaryType type;
+    std::shared_ptr<Expression> expression;
+    
+public:
+    UnaryExpression(UnaryType type, std::shared_ptr<Expression> expression)
+        : type(type), expression(std::move(expression)) {}
+    
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class BorrowExpression : public Expression {
+private:
+    bool is_double;     // true for &&, false for &
+    bool is_mutable;    // true if mut keyword present
+    std::shared_ptr<Expression> expression;
+    
+public:
+    BorrowExpression(bool is_double, bool is_mutable, std::shared_ptr<Expression> expression)
+        : is_double(is_double), is_mutable(is_mutable), expression(std::move(expression)) {}
+    
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class DereferenceExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
+    
+public:
+    DereferenceExpression(std::shared_ptr<Expression> expression)
+        : expression(std::move(expression)) {}
+    
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
 class GroupedExpression : public Expression {
 private:
     std::shared_ptr<Expression> expression;
@@ -746,6 +795,96 @@ private:
 public:
     PathIdentSegment(int type, std::string identifier)
         : type(type), identifier(std::move(identifier)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class AssignmentExpression : public Expression {
+private:
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+public:
+    AssignmentExpression(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs)
+        : lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class CompoundAssignmentExpression : public Expression {
+public:
+    enum CompoundAssignmentType {
+        PLUS_EQ,     // +=
+        MINUS_EQ,    // -=
+        STAR_EQ,     // *=
+        SLASH_EQ,    // /=
+        PERCENT_EQ,  // %=
+        CARET_EQ,    // ^=
+        AND_EQ,      // &=
+        OR_EQ,       // |=
+        SHL_EQ,      // <<=
+        SHR_EQ       // >>=
+    };
+    
+private:
+    CompoundAssignmentType type;
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+    
+public:
+    CompoundAssignmentExpression(CompoundAssignmentType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs)
+        : type(type), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class BinaryExpression : public Expression {
+public:
+    enum BinaryType {
+        PLUS,        // +
+        MINUS,       // -
+        STAR,        // *
+        SLASH,       // /
+        PERCENT,     // %
+        CARET,       // ^
+        AND,         // &
+        OR,          // |
+        SHL,         // <<
+        SHR,         // >>
+        EQ_EQ,       // ==
+        NE,          // !=
+        GT,          // >
+        LT,          // <
+        GE,          // >=
+        LE,          // <=
+        AND_AND,     // &&
+        OR_OR        // ||
+    };
+    
+private:
+    BinaryType type;
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+    
+public:
+    BinaryExpression(BinaryType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs)
+        : type(type), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class TypeCastExpression : public Expression {
+private:
+    std::shared_ptr<Expression> expression;
+    std::shared_ptr<Type> type;
+public:
+    TypeCastExpression(std::shared_ptr<Expression> expression, std::shared_ptr<Type> type)
+        : expression(std::move(expression)), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
