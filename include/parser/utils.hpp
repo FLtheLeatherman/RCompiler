@@ -67,10 +67,26 @@ class ContinueExpression;
 class BreakExpression;
 class ReturnExpression;
 class BlockExpression;
-class LoopExression;
+class LoopExpression;
+class InfiniteLoopExpression;
+class PredicateLoopExpression;
 class IfExpression;
 class Condition;
 class Statements;
+
+// 字面量表达式
+class CharLiteral;
+class StringLiteral;
+class RawStringLiteral;
+class CStringLiteral;
+class RawCStringLiteral;
+class IntegerLiteral;
+class BoolLiteral;
+
+// 运算符表达式
+class UnaryExpression;
+class BorrowExpression;
+class DereferenceExpression;
 /****Statements & expressions****/
 
 /****Patterns****/

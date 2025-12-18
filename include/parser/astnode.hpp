@@ -5,6 +5,9 @@
 #include "parser/utils.hpp"
 #include "parser/visitor.hpp"
 
+// 前向声明
+class ASTPrinter;
+
 class ASTNode {
 public:
     ASTNode() = default;
@@ -13,7 +16,7 @@ public:
 };
 
 class Crate : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<Item>> items;
 public:
     Crate(std::vector<std::shared_ptr<Item>>&& items)
@@ -24,7 +27,7 @@ public:
 };
 
 class Item : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> item; // Function, Struct, Enumeration, ConstantItem, Trait, Implementation
 public:
     Item(std::shared_ptr<ASTNode> item)
@@ -35,22 +38,22 @@ public:
 };
 
 class Function : public ASTNode {
-private:
+public:
     bool is_const;
     std::string identifier;
     std::shared_ptr<FunctionParameters> function_parameters;
     std::shared_ptr<FunctionReturnType> function_return_type;
     std::shared_ptr<BlockExpression> block_expression;
 public:
-    Function(bool is_const, 
-        std::string identifier, 
-        std::shared_ptr<FunctionParameters> function_parameters, 
-        std::shared_ptr<FunctionReturnType> function_return_type, 
+    Function(bool is_const,
+        std::string identifier,
+        std::shared_ptr<FunctionParameters> function_parameters,
+        std::shared_ptr<FunctionReturnType> function_return_type,
         std::shared_ptr<BlockExpression> block_expression)
-        : is_const(is_const), 
-        identifier(std::move(identifier)), 
-        function_parameters(std::move(function_parameters)), 
-        function_return_type(std::move(function_return_type)), 
+        : is_const(is_const),
+        identifier(std::move(identifier)),
+        function_parameters(std::move(function_parameters)),
+        function_return_type(std::move(function_return_type)),
         block_expression(std::move(block_expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
@@ -58,7 +61,7 @@ public:
 };
 
 class Struct : public ASTNode {
-private:
+public:
     std::shared_ptr<StructStruct> struct_struct;
 public:
     Struct(std::shared_ptr<StructStruct> struct_struct)
@@ -69,7 +72,7 @@ public:
 };
 
 class Enumeration : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<EnumVariants> enum_variants;
 public:
@@ -81,7 +84,7 @@ public:
 };
     
 class ConstantItem : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<Type> type;
     std::shared_ptr<Expression> expression;
@@ -94,7 +97,7 @@ public:
 };
 
 class Trait : public ASTNode {
-private:
+public:
     std::string identifier;
     std::vector<std::shared_ptr<AssociatedItem>> associated_item;
 public:
@@ -106,7 +109,7 @@ public:
 };
 
 class Implementation : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> impl; // InherentImpl, TraitImpl
 public:
     Implementation(std::shared_ptr<ASTNode> impl) : impl(std::move(impl)) {}
@@ -116,7 +119,7 @@ public:
 };
 
 class FunctionParameters : public ASTNode {
-private:
+public:
     std::shared_ptr<SelfParam> self_param;
     std::vector<std::shared_ptr<FunctionParam>> function_param;
 public:
@@ -128,7 +131,7 @@ public:
 };
 
 class SelfParam : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // ShorthandSelf, TypedSelf
 public:
     SelfParam(std::shared_ptr<ASTNode> child)
@@ -139,7 +142,7 @@ public:
 };
 
 class ShorthandSelf : public ASTNode {
-private:
+public:
     bool is_reference;
     bool is_mutable;
 public:
@@ -151,19 +154,21 @@ public:
 };
 
 class TypedSelf : public ASTNode {
-private:
+public:
     bool is_mutable;
     std::shared_ptr<Type> type;
 public:
-    TypedSelf(bool is_mutable, std::shared_ptr<Type> type) 
+    TypedSelf(bool is_mutable, std::shared_ptr<Type> type)
         : is_mutable(is_mutable), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
+    
+    friend class ASTPrinter;
 };
 
 class FunctionParam : public ASTNode {
-private:
+public:
     std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
     std::shared_ptr<Type> type;
 public:
@@ -172,21 +177,25 @@ public:
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
+    
+    friend class ASTPrinter;
 };
 
 class FunctionReturnType : public ASTNode {
-private:
+public:
     std::shared_ptr<Type> type;
 public:
-    FunctionReturnType(std::shared_ptr<Type> type) 
+    FunctionReturnType(std::shared_ptr<Type> type)
         : type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
+    
+    friend class ASTPrinter;
 };
 
 class StructStruct : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<StructFields> struct_fields;
 public:
@@ -198,7 +207,7 @@ public:
 };
 
 class StructFields : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<StructField>> struct_fields;
 public:
     StructFields(std::vector<std::shared_ptr<StructField>> struct_fields)
@@ -209,7 +218,7 @@ public:
 };
 
 class StructField : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<Type> type;
 public:
@@ -221,7 +230,7 @@ public:
 };
 
 class EnumVariants : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<EnumVariant>> enum_variant;
 public:
     EnumVariants(std::vector<std::shared_ptr<EnumVariant>> enum_variant)
@@ -232,7 +241,7 @@ public:
 };
 
 class EnumVariant : public ASTNode {
-private:
+public:
     std::string identifier;
 public:
     EnumVariant(std::string identifier)
@@ -243,7 +252,7 @@ public:
 };
 
 class AssociatedItem : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // ConstantItem, Function
 public:
     AssociatedItem(std::shared_ptr<ASTNode> child)
@@ -254,7 +263,7 @@ public:
 };
 
 class InherentImpl : public ASTNode {
-private:
+public:
     std::shared_ptr<Type> type;
     std::vector<std::shared_ptr<AssociatedItem>> associated_item;
 public:
@@ -265,7 +274,7 @@ public:
     }
 };
 class TraitImpl : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<Type> type;
     std::vector<std::shared_ptr<AssociatedItem>> associated_item;
@@ -278,7 +287,7 @@ public:
 };
 
 class Statement : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // nullptr(,), Item, LetStatement, ExpressionStatement
 public:
     Statement(std::shared_ptr<ASTNode> child)
@@ -289,7 +298,7 @@ public:
 };
 
 class LetStatement : public ASTNode {
-private:
+public:
     std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
     std::shared_ptr<Type> type;
     std::shared_ptr<Expression> expression;
@@ -306,7 +315,7 @@ public:
 };
 
 class ExpressionStatement : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
     bool has_semi;
 public:
@@ -318,7 +327,7 @@ public:
 };
 
 class Statements : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<ASTNode>> statements; // Statement+ or Statement+ ExpressionWithoutBlock or ExpressionWithoutBlock
 public:
     Statements(std::vector<std::shared_ptr<ASTNode>> statements)
@@ -329,7 +338,7 @@ public:
 };
 
 class Expression : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // ExpressionWithoutBlock, ExpressionWithBlock
 public:
     Expression() = default;
@@ -354,7 +363,7 @@ public:
 };
 
 class ExpressionWithBlock : public Expression {
-private:
+public:
     std::shared_ptr<ASTNode> child;
 public:
     ExpressionWithBlock(std::shared_ptr<ASTNode> child)
@@ -366,7 +375,7 @@ public:
 
 
 class CharLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     CharLiteral(std::string value) : value(std::move(value)) {}
@@ -376,7 +385,7 @@ public:
 };
 
 class StringLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     StringLiteral(std::string value) : value(std::move(value)) {}
@@ -386,7 +395,7 @@ public:
 };
 
 class RawStringLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     RawStringLiteral(std::string value) : value(std::move(value)) {}
@@ -396,7 +405,7 @@ public:
 };
 
 class CStringLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     CStringLiteral(std::string value) : value(std::move(value)) {}
@@ -406,7 +415,7 @@ public:
 };
 
 class RawCStringLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     RawCStringLiteral(std::string value) : value(std::move(value)) {}
@@ -416,7 +425,7 @@ public:
 };
 
 class IntegerLiteral : public Expression {
-private:
+public:
     std::string value;
 public:
     IntegerLiteral(std::string value) : value(std::move(value)) {}
@@ -426,7 +435,7 @@ public:
 };
 
 class BoolLiteral : public Expression {
-private:
+public:
     bool value;
 public:
     BoolLiteral(bool value) : value(value) {}
@@ -436,7 +445,7 @@ public:
 };
 
 class PathExpression : public Expression {
-private:
+public:
     std::shared_ptr<PathInExpression> path_in_expression;
 public:
     PathExpression(std::shared_ptr<PathInExpression> path_in_expression)
@@ -462,7 +471,7 @@ public:
         TRY          // ?
     };
     
-private:
+public:
     UnaryType type;
     std::shared_ptr<Expression> expression;
     
@@ -476,7 +485,7 @@ public:
 };
 
 class BorrowExpression : public Expression {
-private:
+public:
     bool is_double;     // true for &&, false for &
     bool is_mutable;    // true if mut keyword present
     std::shared_ptr<Expression> expression;
@@ -491,7 +500,7 @@ public:
 };
 
 class DereferenceExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
     
 public:
@@ -504,7 +513,7 @@ public:
 };
 
 class GroupedExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
 public:
     GroupedExpression(std::shared_ptr<Expression> expression)
@@ -515,7 +524,7 @@ public:
 };
 
 class ArrayExpression : public Expression {
-private:
+public:
     std::shared_ptr<ArrayElements> array_elements;
 public:
     ArrayExpression(std::shared_ptr<ArrayElements> array_elements)
@@ -526,7 +535,7 @@ public:
 };
 
 class IndexExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> base_expression;
     std::shared_ptr<Expression> index_expression;
 public:
@@ -538,7 +547,7 @@ public:
 };
 
 class StructExpression : public Expression {
-private:
+public:
     std::shared_ptr<PathInExpression> path_in_expression;
     std::shared_ptr<StructExprFields> struct_expr_fields;
 public:
@@ -550,7 +559,7 @@ public:
 };
 
 class CallExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
     std::shared_ptr<CallParams> call_params;
 public:
@@ -562,7 +571,7 @@ public:
 };
 
 class MethodCallExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
     std::shared_ptr<PathIdentSegment> path_ident_segment;
     std::shared_ptr<CallParams> call_params;
@@ -575,7 +584,7 @@ public:
 };
 
 class FieldExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
     std::string identifier;
 public:
@@ -595,7 +604,7 @@ public:
 };
 
 class BreakExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
 public:
     BreakExpression(std::shared_ptr<Expression> expression)
@@ -606,7 +615,7 @@ public:
 };
 
 class ReturnExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
 public:
     ReturnExpression(std::shared_ptr<Expression> expression)
@@ -617,7 +626,7 @@ public:
 };
 
 class BlockExpression : public Expression {
-private:
+public:
     std::shared_ptr<Statements> statements;
 public:
     BlockExpression(std::shared_ptr<Statements> statements)
@@ -628,7 +637,7 @@ public:
 };
 
 class LoopExpression : public Expression {
-private:
+public:
     std::shared_ptr<ASTNode> child; // InfiniteLoopExpression or PredicateLoopExpression
 public:
     LoopExpression(std::shared_ptr<ASTNode> child)
@@ -639,7 +648,7 @@ public:
 };
 
 class InfiniteLoopExpression : public Expression {
-private:
+public:
     std::shared_ptr<BlockExpression> block_expression;
 public:
     InfiniteLoopExpression(std::shared_ptr<BlockExpression> block_expression)
@@ -650,7 +659,7 @@ public:
 };
 
 class PredicateLoopExpression : public Expression {
-private:
+public:
     std::shared_ptr<Condition> condition;
     std::shared_ptr<BlockExpression> block_expression;
 public:
@@ -662,7 +671,7 @@ public:
 };
 
 class Condition : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression; // Expression except StructExpression
 public:
     Condition(std::shared_ptr<Expression> expression)
@@ -673,7 +682,7 @@ public:
 };
 
 class IfExpression : public Expression {
-private:
+public:
     std::shared_ptr<Condition> condition;
     std::shared_ptr<BlockExpression> then_block;
     std::shared_ptr<Expression> else_branch; // BlockExpression or IfExpression
@@ -698,7 +707,7 @@ public:
 };
 
 class IdentifierPattern : public ASTNode {
-private:
+public:
     bool is_ref;
     bool is_mutable;
     std::string identifier;
@@ -711,7 +720,7 @@ public:
 };
 
 class ReferencePattern : public ASTNode {
-private:
+public:
     bool is_double;     // true for &&, false for &
     bool is_mutable;
     std::shared_ptr<PatternNoTopAlt> pattern;
@@ -724,7 +733,7 @@ public:
 };
 
 class Type : public ASTNode {
-private:
+public:
     std::shared_ptr<ASTNode> child; // TypePath (PathIdentSegment), ReferenceType, ArrayType, UnitType
 public:
     Type(std::shared_ptr<ASTNode> child)
@@ -735,7 +744,7 @@ public:
 };
 
 class ReferenceType : public ASTNode {
-private:
+public:
     bool is_mutable;
     std::shared_ptr<Type> type;
 public:
@@ -747,7 +756,7 @@ public:
 };
 
 class ArrayType : public ASTNode {
-private:
+public:
     std::shared_ptr<Type> type;
     std::shared_ptr<Expression> expression;
 public:
@@ -767,7 +776,7 @@ public:
 };
 
 class PathInExpression : public ASTNode {
-private:
+public:
     std::shared_ptr<PathIdentSegment> segment1, segment2;
 public:
     PathInExpression(std::shared_ptr<PathIdentSegment> segment1, std::shared_ptr<PathIdentSegment> segment2)
@@ -778,7 +787,7 @@ public:
 };
 
 class ArrayElements : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<Expression>> expressions;
     bool is_semicolon_separated; // true for semicolon separated, false for comma separated
 public:
@@ -790,7 +799,7 @@ public:
 };
 
 class StructExprFields : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<StructExprField>> struct_expr_fields;
 public:
     StructExprFields(std::vector<std::shared_ptr<StructExprField>> struct_expr_fields)
@@ -801,7 +810,7 @@ public:
 };
 
 class StructExprField : public ASTNode {
-private:
+public:
     std::string identifier;
     std::shared_ptr<Expression> expression;
 public:
@@ -813,7 +822,7 @@ public:
 };
 
 class CallParams : public ASTNode {
-private:
+public:
     std::vector<std::shared_ptr<Expression>> expressions;
 public:
     CallParams(std::vector<std::shared_ptr<Expression>> expressions)
@@ -825,7 +834,7 @@ public:
 
 
 class PathIdentSegment: public ASTNode {
-private:
+public:
     int type; // 0 for identifier, 1 for Self, 2 for self
     std::string identifier;
 public:
@@ -837,7 +846,7 @@ public:
 };
 
 class AssignmentExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;
 public:
@@ -863,7 +872,7 @@ public:
         SHR_EQ       // >>=
     };
     
-private:
+public:
     CompoundAssignmentType type;
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;
@@ -900,7 +909,7 @@ public:
         OR_OR        // ||
     };
     
-private:
+public:
     BinaryType type;
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;
@@ -915,7 +924,7 @@ public:
 };
 
 class TypeCastExpression : public Expression {
-private:
+public:
     std::shared_ptr<Expression> expression;
     std::shared_ptr<Type> type;
 public:
