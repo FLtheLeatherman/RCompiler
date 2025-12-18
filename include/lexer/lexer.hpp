@@ -154,7 +154,7 @@ private:
 
         {Token::kIdentifier, std::regex("[a-zA-Z][a-zA-Z0-9_]*")},
 
-        {Token::kComment, std::regex("((//([^\\n])*(\\n)?)|(\\/\\*[\\s\\S]*\\*/))")},
+        // {Token::kComment, std::regex("((//([^\\n])*(\\n)?)|(\\/\\*[\\s\\S]*\\*\\/))")},
 
         {Token::kCharLiteral, std::regex(R"('([^'\\\n\r\t]|\\'|\\"|\\x[0-7][0-9a-fA-F]|\\n|\\r|\\t|\\\\|\\0)')")},
         {Token::kStringLiteral, std::regex(R"("(([^"\\\r\t])|(\\')|(\\")|((\\x[0-7][0-9a-fA-F])|(\\n)|(\\r)|(\\t)|(\\\\)|(\\0))|(\\\n))*"([a-zA-Z][a-zA-Z0-9_]*)?)")},
@@ -221,3 +221,5 @@ private:
 public:
     std::vector<std::pair<Token, std::string>> lex(std::string);
 };
+
+std::string tokenToString(Token token);

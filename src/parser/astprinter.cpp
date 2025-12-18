@@ -755,6 +755,11 @@ void ASTPrinter::visit(CallParams& node) {
 // 模式类节点
 void ASTPrinter::visit(PatternNoTopAlt& node) {
     print_with_indent(get_color_code("blue") + "PatternNoTopAlt" + reset_color() + "\n");
+    indent_level++;
+    if (node.child) {
+        node.child->accept(this);
+    }
+    indent_level--;
 }
 
 void ASTPrinter::visit(IdentifierPattern& node) {

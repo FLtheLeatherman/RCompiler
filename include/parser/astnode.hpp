@@ -356,7 +356,7 @@ public:
     // ArrayExpression, IndexExpression, StructExpression, CallExpression,
     // MethodCallExpression, FieldExpression, ContinueExpression, BreakExpression, ReturnExpression.
     ExpressionWithoutBlock(std::shared_ptr<ASTNode> child)
-        : Expression(std::move(child)) {}
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -367,7 +367,7 @@ public:
     std::shared_ptr<ASTNode> child;
 public:
     ExpressionWithBlock(std::shared_ptr<ASTNode> child)
-        : Expression(std::move(child)) {}
+        : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -700,7 +700,10 @@ public:
 
 class PatternNoTopAlt : public ASTNode {
 public:
-    PatternNoTopAlt() {}
+    std::shared_ptr<ASTNode> child;
+public:
+    PatternNoTopAlt(std::shared_ptr<ASTNode> child) 
+    : child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

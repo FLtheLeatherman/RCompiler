@@ -15,7 +15,7 @@ void Parser::match(Token token) {
     if (peek() == token) {
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error(std::string("parse failed! Expected token ") + tokenToString(token) + std::string(" in match"));
     }
 }
 
@@ -135,7 +135,9 @@ int Parser::getTokenRightBP(Token token) {
 }
 
 std::shared_ptr<ASTNode> Parser::parsePrattPrefix() {
+    // std::cerr << "parsePrattPrefix:" << std::endl;
     Token token = peek();
+    // std::cerr << tokenToString(token) << std::endl;
     
     switch (token) {
         // Control flow expressions
@@ -168,7 +170,10 @@ std::shared_ptr<ASTNode> Parser::parsePrattPrefix() {
             return parseArrayExpression();
         
         // Struct expressions
+        case Token::kSelf:
+        case Token::kSelf_:
         case Token::kIdentifier: {
+            // std::cerr << "Identifier in Prefix!" << std::endl;
             // This could be a path expression or struct expression
             // We need to look ahead to determine
             size_t tmp = pos;
@@ -226,23 +231,30 @@ std::shared_ptr<ASTNode> Parser::parsePrattPrefix() {
 }
 
 std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
+    // std::cerr << "PrattExpression:" << std::endl;
     // Try to parse prefix expression
     auto lhs = parsePrattPrefix();
     if (!lhs) {
         return nullptr;
     }
-    
+    // std::cerr << "lhs is good!" << std::endl;
+    // std::cerr << pos << std::endl;
     // While the next operator has higher binding power, consume it
     while (true) {
         Token next_token = peek();
+
+        // std::cerr << pos << ' ' << tokenToString(next_token) << std::endl;
         
         // Check for closing tokens that should break the loop
         if (next_token == Token::kRParenthese || next_token == Token::kRSquare || next_token == Token::kRCurly) {
+            // std::cerr << "break!" << std::endl;
             break;
         }
         
         int next_bp = getTokenLeftBP(next_token);
-        
+
+        // std::cerr << next_bp << ' ' << current_bp << std::endl;
+
         if (next_bp <= current_bp) {
             break;
         }
@@ -251,14 +263,12 @@ std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
         switch (next_token) {
             // Function call
             case Token::kLParenthese: {
-                pos--; // Put back the '(' for the infix parser
                 lhs = parseCallExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
                 break;
             }
             
             // Index expression
             case Token::kLSquare: {
-                pos--; // Put back the '[' for the infix parser
                 lhs = parseIndexExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
                 break;
             }
@@ -266,11 +276,13 @@ std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
             // Method call and field access
             case Token::kDot: {
                 // Look ahead to determine if it's a method call or field access
-                if (pos + 1 < tokens.size() && tokens[pos + 1].first == Token::kLParenthese) {
-                    pos--; // Put back the '.' for the infix parser
+                auto lhs_ = lhs;
+                size_t tmp = pos;
+                try {
                     lhs = parseMethodCallExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
-                } else {
-                    pos--; // Put back the '.' for the infix parser
+                } catch (...) {
+                    pos = tmp;
+                    lhs = lhs_;
                     lhs = parseFieldExpressionFromInfix(std::dynamic_pointer_cast<Expression>(lhs));
                 }
                 break;
@@ -286,6 +298,7 @@ std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
             
             // Assignment and binary operators - need to parse RHS
             default: {
+                // std::cerr << "Are we here?" << std::endl;
                 // Consume the operator and parse the right-hand side
                 consume();
                 int right_bp = getTokenRightBP(next_token);
@@ -397,7 +410,7 @@ std::shared_ptr<ASTNode> Parser::parsePrattExpression(int current_bp) {
 }
 
 std::shared_ptr<Crate> Parser::parseCrate() {
-    // std::cerr << "Crate: {\n";
+    // std::cerr << "Crate: " << std::endl;
     std::vector<std::shared_ptr<Item>> items;
     while (1) {
         auto curItem = parseItem();
@@ -409,7 +422,8 @@ std::shared_ptr<Crate> Parser::parseCrate() {
 }
 
 std::shared_ptr<Item> Parser::parseItem() {
-    // std::cerr << "Item: {\n";
+    std::cerr << "Item: " << std::endl;
+    std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
     // std::cerr << (int)peek() << std::endl;
     if (peek() == Token::kEOF) {
         return nullptr;
@@ -430,12 +444,12 @@ std::shared_ptr<Item> Parser::parseItem() {
     } else if (peek() == Token::kImpl) {
         return std::make_shared<Item>(std::move(parseImplementation()));
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in Item");
     }
     // std::cerr << "}\n";
 }
 std::shared_ptr<Function> Parser::parseFunction() {
-    // std::cerr << "Function: {\n";
+    // std::cerr << "Function: " << std::endl;
     bool is_const = false;
     std::string identifier;
     std::shared_ptr<FunctionParameters> function_parameters = nullptr;
@@ -450,10 +464,11 @@ std::shared_ptr<Function> Parser::parseFunction() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in function");
     }
     // std::cerr << "function name: " << identifier << std::endl;
     match(Token::kLParenthese);
+    // std::cerr << tokenToString(peek()) << std::endl;
     if (peek() == Token::kRParenthese) {
         consume();
         function_parameters = nullptr;
@@ -461,10 +476,14 @@ std::shared_ptr<Function> Parser::parseFunction() {
         function_parameters = std::move(parseFunctionParameters());
         match(Token::kRParenthese);
     }
+    // std::cerr << "function param done" << std::endl;
+    // std::cerr << pos << std::endl;
     function_return_type = std::move(parseFunctionReturnType());
+    // std::cerr << "function return type done" << std::endl;
     if (peek() == Token::kSemi) {
         consume();
     } else {
+        // std::cerr << "start function block expression" << std::endl;
         block_expression = std::move(parseBlockExpression());
     }
     // std::cerr << "}\n";
@@ -485,7 +504,7 @@ std::shared_ptr<Enumeration> Parser::parseEnumeration() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in struct");
     }
     match(Token::kLCurly);
     if (peek() == Token::kRCurly) {
@@ -505,7 +524,7 @@ std::shared_ptr<ConstantItem> Parser::parseConstantItem() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in constant item");
     }
     match(Token::kColon);
     type = std::move(parseType());
@@ -524,7 +543,7 @@ std::shared_ptr<Trait> Parser::parseTrait() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in trait");
     }
     match(Token::kLCurly);
     while (1) {
@@ -540,16 +559,22 @@ std::shared_ptr<Trait> Parser::parseTrait() {
 }
 std::shared_ptr<Implementation> Parser::parseImplementation() {
     match(Token::kImpl);
-    if (peek() == Token::kType) {
-        return std::make_shared<Implementation>(std::move(parseInherentImpl()));
-    } else if (peek() == Token::kIdentifier) {
-        return std::make_shared<Implementation>(std::move(parseTraitImpl()));
-    } else {
-        throw std::runtime_error("parse failed!");
+    std::shared_ptr<ASTNode> child;
+    size_t tmp = pos;
+    try {
+        child = std::move(parseTraitImpl());
+    } catch (...) {
+        try {
+            pos = tmp;
+            child = std::move(parseInherentImpl());
+        } catch (...) {
+            throw std::runtime_error("parse failed! Unexpected token in implementation");
+        }
     }
+    return std::make_shared<Implementation>(std::move(child));
 }
 std::shared_ptr<FunctionParameters> Parser::parseFunctionParameters() {
-    // std::cerr << "FunctionParameters: {";
+    // std::cerr << "FunctionParameter:";
     bool has_self = false;
     std::shared_ptr<SelfParam> self_param = nullptr;
     std::vector<std::shared_ptr<FunctionParam>> function_param;
@@ -559,6 +584,7 @@ std::shared_ptr<FunctionParameters> Parser::parseFunctionParameters() {
         else has_self = true;
     }
     pos = tmp;
+    // std::cerr << has_self << ' ' << pos << std::endl;
     if (has_self) {
         self_param = std::move(parseSelfParam());
     }
@@ -638,7 +664,7 @@ std::shared_ptr<StructStruct> Parser::parseStructStruct() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in structstruct");
     }
     if (peek() == Token::kSemi) {
         consume();
@@ -679,7 +705,7 @@ std::shared_ptr<StructField> Parser::parseStructField() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in struct field");
     }
     match(Token::kColon);
     type = std::move(parseType());
@@ -698,7 +724,7 @@ std::shared_ptr<EnumVariants> Parser::parseEnumVariants() {
             if (tmp != nullptr) {
                 enum_variant.push_back(std::move(tmp));
             } else {
-                throw std::runtime_error("parse failed!");
+                throw std::runtime_error("parse failed! Unexpected token in enum variants");
             }
         }
     }
@@ -710,7 +736,7 @@ std::shared_ptr<EnumVariant> Parser::parseEnumVariant() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in enum variant");
     }
     return std::make_shared<EnumVariant>(std::move(identifier));
 }
@@ -726,10 +752,13 @@ std::shared_ptr<AssociatedItem> Parser::parseAssociatedItem() {
     }
 }
 std::shared_ptr<InherentImpl> Parser::parseInherentImpl() {
+    // std::cerr << "InherentImpl:" << std::endl;
+    // std::cerr << pos << std::endl;
     std::shared_ptr<Type> type;
     std::vector<std::shared_ptr<AssociatedItem>> associated_item;
     type = std::move(parseType());
-    match(Token::kRCurly);
+    // std::cerr << "Type matched!" << std::endl;
+    match(Token::kLCurly);
     while (1) {
         if (peek() == Token::kRCurly) {
             consume();
@@ -749,7 +778,7 @@ std::shared_ptr<TraitImpl> Parser::parseTraitImpl() {
         identifier = get_string();
         consume();
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in trait impl");
     }
     match(Token::kFor);
     type = std::move(parseType());
@@ -767,6 +796,8 @@ std::shared_ptr<TraitImpl> Parser::parseTraitImpl() {
 }
 
 std::shared_ptr<Statement> Parser::parseStatement() {
+    // std::cerr << "Statement:" << std::endl;
+    // std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
     if (peek() == Token::kSemi) {
         consume();
         return std::make_shared<Statement>(nullptr);
@@ -785,40 +816,51 @@ std::shared_ptr<Statement> Parser::parseStatement() {
     }
 }
 std::shared_ptr<LetStatement> Parser::parseLetStatement() {
+    // std::cerr << "LetStatement:" << std::endl;
     std::shared_ptr<PatternNoTopAlt> pattern_no_top_alt;
     std::shared_ptr<Type> type;
     std::shared_ptr<Expression> expression;
     match(Token::kLet);
     pattern_no_top_alt = parsePatternNoTopAlt();
     match(Token::kColon);
+    // std::cerr << "colon matched!" << std::endl;
     type = parseType();
+    // std::cerr << "type matched!" << std::endl;
     match(Token::kEq);
+    // std::cerr << "eq matched!" << std::endl;
     expression = parseExpression();
+    // std::cerr << "expression matched!" << std::endl;
     match(Token::kSemi);
+    // std::cerr << "semi matched!" << std::endl;
     return std::make_shared<LetStatement>(std::move(pattern_no_top_alt), std::move(type), std::move(expression));
 }
 std::shared_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
+    // std::cerr << "ExpressionStatement:" << std::endl;
     std::shared_ptr<ASTNode> child;
     size_t tmp = pos;
     bool has_semi = false;
     try {
+        child = parseExpressionWithoutBlock();
+        match(Token::kSemi);
+        has_semi = true;
+    } catch (...) {
+        // std::cerr << "failed ExpressionWithouBlock!" << std::endl;
+        pos = tmp;
         child = parseExpressionWithBlock();
         if (peek() == Token::kSemi) {
             consume();
             has_semi = true;
         }
-    } catch (...) {
-        pos = tmp;
-        child = parseExpressionWithoutBlock();
-        match(Token::kSemi);
-        has_semi = true;
+        // std::cerr << "succeeded ExpressionWithouBlock " << pos << std::endl;
     }
     return std::make_shared<ExpressionStatement>(std::move(child), has_semi);
 }
-
+int ccnt = 0;
 std::shared_ptr<Statements> Parser::parseStatements() {
+    // std::cerr << "Statements:" << std::endl;
     std::vector<std::shared_ptr<ASTNode>> statements;
-    
+    ccnt++;
+    // std::cerr << ccnt << ' ' << pos << std::endl;
     // Try to parse statements until we hit a closing brace or EOF
     while (peek() != Token::kRCurly && peek() != Token::kEOF) {
         size_t tmp = pos;
@@ -837,8 +879,10 @@ std::shared_ptr<Statements> Parser::parseStatements() {
         
         // If Statement parsing failed, try to parse ExpressionWithoutBlock
         try {
+            // std::cerr << "statements failed statement " << ccnt << ' ' << pos << ' ' << tmp << std::endl;
             statement = std::move(parseExpressionWithoutBlock());
             if (statement) {
+                // std::cerr << "succeeded ExpressionWithoutBlock in Statements " << pos << std::endl;
                 statements.push_back(std::move(statement));
                 // Check if there's a semicolon after the expression
                 break;
@@ -855,19 +899,23 @@ std::shared_ptr<Statements> Parser::parseStatements() {
 }
 
 std::shared_ptr<Expression> Parser::parseExpression() {
-    std::shared_ptr<ASTNode> child;
-    size_t tmp = pos;
-    try {
-        child = parseExpressionWithBlock();
-    } catch (...) {
-        pos = tmp;
-        child = parsePrattExpression(0);
-    }
+    // std::cerr << "Expression:" << std::endl;
+    // std::shared_ptr<ASTNode> child;
+    // size_t tmp = pos;
+    // try {
+    //     child = parseExpressionWithBlock();
+    // } catch (...) {
+    //     pos = tmp;
+    //     child = parsePrattExpression(0);
+    // }
+    auto child = parsePrattExpression(0);
     return std::make_shared<Expression>(std::move(child));
 }
 std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
-    // 调用 parseExpression，如果返回来的类型可以被 cast 到 ExpressionWithBlock，抛出错误，否则正常运行。
-    auto expression = parseExpression();
+    // std::cerr << "parseExpressionWithoutBlock: " << pos << std::endl;
+    auto expression = parsePrattExpression(0);
+
+    // std::cerr << "at least here" << std::endl;
     
     // 检查返回的表达式是否可以被 cast 到 ExpressionWithBlock
     if (std::dynamic_pointer_cast<ExpressionWithBlock>(expression)
@@ -875,13 +923,21 @@ std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
      || std::dynamic_pointer_cast<LoopExpression>(expression)
      || std::dynamic_pointer_cast<BlockExpression>(expression)
     ) {
+        // std::cerr << "this is not what we wanted" << std::endl;
         throw std::runtime_error("parse failed! ExpressionWithBlock not allowed in ExpressionWithoutBlock context");
     }
+
+    // if (expression == nullptr) std::cerr << "???" << std::endl;
+
+    // std::cerr << "we are good!" << std::endl;
+    // std::cerr << pos << std::endl;
     
     // 如果不能 cast 到 ExpressionWithBlock，则正常运行，创建 ExpressionWithoutBlock
     return std::make_shared<ExpressionWithoutBlock>(std::move(expression));
 }
 std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
+    // std::cerr << "ExpressionWithBlock:" << std::endl;
+    // std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
     std::shared_ptr<ASTNode> child;
     
     // Try to parse if expression
@@ -901,79 +957,56 @@ std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
         child = std::move(parseBlockExpression());
         return std::make_shared<ExpressionWithBlock>(std::move(child));
     }
-    
+
+    // std::cerr << "ExpressionWithBlock not matched!" << std::endl;
+    throw(std::runtime_error("parse failed! Not an ExpressionWithBlock"));
+
     return nullptr;
 }
 std::shared_ptr<BlockExpression> Parser::parseBlockExpression() {
+    // std::cerr << "BlockExpression:" << std::endl;
+    // std::cerr << "!!" << pos << std::endl;
     std::shared_ptr<Statements> statements = nullptr;
     
     match(Token::kLCurly);
     
     // Check if there are statements inside the block
+    
+    auto tmp = pos;
     if (peek() != Token::kRCurly) {
+        
         statements = std::move(parseStatements());
     }
     
-    match(Token::kRCurly);
+    try {
+        match(Token::kRCurly);
+    } catch (...) {
+        // std::cerr << "we are here!" << std::endl;
+        pos = tmp;
+        std::vector<std::shared_ptr<ASTNode>> vec;
+        vec.push_back(std::move(parseExpressionWithoutBlock()));
+        statements = std::make_shared<Statements>(std::move(vec));
+        match(Token::kRCurly);
+    }
     
     return std::make_shared<BlockExpression>(std::move(statements));
 }
 
 std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
     // PatternNoTopAlt → IdentifierPattern | ReferencePattern
-    
-    // Try IdentifierPattern first: `ref`? `mut`? IDENTIFIER
-    if (peek() == Token::kIdentifier || peek() == Token::kRef || peek() == Token::kMut) {
+    // std::cerr << "PatternNoTopAlt:" << std::endl;
+
+    try {
         auto pattern = parseIdentifierPattern();
-        if (pattern) {
-            return std::dynamic_pointer_cast<PatternNoTopAlt>(pattern);
-        }
+        return std::make_shared<PatternNoTopAlt>(std::move(pattern));
+    } catch (...) {
+        auto pattern = parseReferencePattern();
+        return std::make_shared<PatternNoTopAlt>(std::move(pattern));
     }
-    
-    // Try ReferencePattern: ( `&` | `&&` ) `mut`? PatternNoTopAlt
-    if (peek() == Token::kLParenthese) {
-        size_t tmp = pos;
-        consume(); // consume '('
-        
-        bool is_double = false;
-        if (peek() == Token::kAnd) {
-            consume(); // consume first '&'
-            if (peek() == Token::kAnd) {
-                is_double = true;
-                consume(); // consume second '&'
-            } else {
-                pos = tmp; // backtrack, this wasn't a reference pattern
-                return nullptr;
-            }
-        } else {
-            pos = tmp; // backtrack, this wasn't a reference pattern
-            return nullptr;
-        }
-        
-        if (peek() != Token::kRParenthese) {
-            pos = tmp; // backtrack
-            return nullptr;
-        }
-        consume(); // consume ')'
-        
-        bool is_mutable = false;
-        if (peek() == Token::kMut) {
-            is_mutable = true;
-            consume(); // consume 'mut'
-        }
-        
-        auto pattern = parsePatternNoTopAlt();
-        if (!pattern) {
-            throw std::runtime_error("parse failed! Expected pattern after reference");
-        }
-        
-        return std::dynamic_pointer_cast<PatternNoTopAlt>(std::make_shared<ReferencePattern>(is_double, is_mutable, std::move(pattern)));
-    }
-    
-    return nullptr;
 }
 
 std::shared_ptr<IdentifierPattern> Parser::parseIdentifierPattern() {
+    // std::cerr << "IdentifierPattern" << std::endl;
     // IdentifierPattern → `ref`? `mut`? IDENTIFIER
     bool is_ref = false;
     bool is_mutable = false;
@@ -994,6 +1027,7 @@ std::shared_ptr<IdentifierPattern> Parser::parseIdentifierPattern() {
     // Expect identifier
     if (peek() == Token::kIdentifier) {
         identifier = get_string();
+        // std::cerr << "IDENTIFIER: " << identifier << std::endl;
         consume(); // consume identifier
     } else {
         throw std::runtime_error("parse failed! Expected identifier in pattern");
@@ -1004,12 +1038,8 @@ std::shared_ptr<IdentifierPattern> Parser::parseIdentifierPattern() {
 
 std::shared_ptr<ReferencePattern> Parser::parseReferencePattern() {
     // ReferencePattern → ( `&` | `&&` ) `mut`? PatternNoTopAlt
-    if (peek() != Token::kLParenthese) {
-        return nullptr;
-    }
     
     size_t tmp = pos;
-    consume(); // consume '('
     
     bool is_double = false;
     if (peek() == Token::kAnd) {
@@ -1024,11 +1054,6 @@ std::shared_ptr<ReferencePattern> Parser::parseReferencePattern() {
         pos = tmp; // backtrack, this wasn't a reference pattern
         return nullptr;
     }
-    
-    if (peek() != Token::kRParenthese) {
-        throw std::runtime_error("parse failed! Expected ')' in reference pattern");
-    }
-    consume(); // consume ')'
     
     bool is_mutable = false;
     if (peek() == Token::kMut) {
@@ -1045,6 +1070,7 @@ std::shared_ptr<ReferencePattern> Parser::parseReferencePattern() {
 }
 
 std::shared_ptr<Type> Parser::parseType() {
+    // std::cerr << "Type:" << std::endl;
     // Type → PathIdentSegment | ReferenceType | ArrayType | UnitType
     std::shared_ptr<ASTNode> child;
     
@@ -1076,7 +1102,7 @@ std::shared_ptr<Type> Parser::parseType() {
             return std::make_shared<Type>(std::move(child));
         }
     }
-    
+    // std::cerr << "parsePathIdentSegment?" << std::endl;
     // Try PathIdentSegment
     child = parsePathIdentSegment();
     if (child) {
@@ -1159,34 +1185,31 @@ std::shared_ptr<UnitType> Parser::parseUnitType() {
 std::shared_ptr<PathInExpression> Parser::parsePathInExpression() {
     std::shared_ptr<PathIdentSegment> segment1, segment2;
     segment1 = std::move(parsePathIdentSegment());
-    size_t tmp = pos;
-    int cnt = 0;
-    for (size_t _ = 0; _ < 2; ++_) {
-        if (peek() == Token::kColon) {
-            consume();
-            cnt++;
-        }
-    }
-    if (cnt == 2) {
+    if (peek() == Token::kPathSep) {
+        consume();
         segment2 = std::move(parsePathIdentSegment());
     } else {
         segment2 = nullptr;
-        pos = tmp;
     }
     return std::make_shared<PathInExpression>(std::move(segment1), std::move(segment2));
 }
 
 std::shared_ptr<PathIdentSegment> Parser::parsePathIdentSegment() {
+    // std::cerr << "PathIdentSegment:" << std::endl;
+    // std::cerr << pos << std::endl;
     if (peek() == Token::kIdentifier) {
         std::string identifier = get_string();
+        // std::cerr << "IDENTIFIER: " << identifier << std::endl;
         consume();
         return std::make_shared<PathIdentSegment>(0, std::move(identifier));
     } else if (peek() == Token::kSelf) {
+        consume();
         return std::make_shared<PathIdentSegment>(1, "");
-    } else if (peek() == Token::kSelf) {
+    } else if (peek() == Token::kSelf_) {
+        consume();
         return std::make_shared<PathIdentSegment>(2, "");
     } else {
-        throw std::runtime_error("parse failed!");
+        throw std::runtime_error("parse failed! Unexpected token in path ident segment");
     }
 }
 
@@ -1240,6 +1263,9 @@ std::shared_ptr<BoolLiteral> Parser::parseBoolLiteral() {
 }
 
 std::shared_ptr<Condition> Parser::parseCondition() {
+    // std::cerr << "Condition:" << std::endl;
+    // std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
+    match(Token::kLParenthese);
     std::shared_ptr<Expression> expression = std::move(parseExpression());
     
     // Check if expression is StructExpression (should not be allowed)
@@ -1258,22 +1284,29 @@ std::shared_ptr<Condition> Parser::parseCondition() {
             throw std::runtime_error("parse failed! StructExpression not allowed in if condition");
         }
     }
-    
+    match(Token::kRParenthese);
     return std::make_shared<Condition>(std::move(expression));
 }
 
 std::shared_ptr<IfExpression> Parser::parseIfExpression() {
+    // std::cerr << "IfExpression!" << std::endl;
     std::shared_ptr<Condition> condition;
     std::shared_ptr<BlockExpression> then_block;
     std::shared_ptr<Expression> else_branch = nullptr;
     
     match(Token::kIf);
+
+    // std::cerr << "?" << std::endl;
     
     // Parse condition
     condition = std::move(parseCondition());
+
+    // std::cerr << "Condition matched!" << std::endl;
     
     // Parse then block
     then_block = std::move(parseBlockExpression());
+
+    // std::cerr << "BlockExpression matched!" << std::endl;
     
     // Parse optional else branch
     if (peek() == Token::kElse) {
@@ -1293,6 +1326,7 @@ std::shared_ptr<IfExpression> Parser::parseIfExpression() {
 }
 
 std::shared_ptr<ReturnExpression> Parser::parseReturnExpression() {
+    // std::cerr << "ReturnExpression!" << std::endl;
     std::shared_ptr<Expression> expression = nullptr;
     
     match(Token::kReturn);
@@ -1515,15 +1549,17 @@ std::shared_ptr<CallExpression> Parser::parseCallExpression() {
 }
 
 std::shared_ptr<CallExpression> Parser::parseCallExpressionFromInfix(std::shared_ptr<Expression> lhs) {
+    // std::cerr << "CallExpressionFromInfix:" << std::endl;
     std::shared_ptr<CallParams> call_params = nullptr;
     
     // Parse the call parameters
     match(Token::kLParenthese);
+    // std::cerr << "( matched!" << std::endl;
     if (peek() != Token::kRParenthese) {
         call_params = std::move(parseCallParams());
     }
     match(Token::kRParenthese);
-    
+    // std::cerr << "CallExpressionFromInfix done!" << std::endl;
     return std::make_shared<CallExpression>(std::move(lhs), std::move(call_params));
 }
 
@@ -1654,6 +1690,8 @@ std::shared_ptr<UnaryExpression> Parser::parseUnaryExpression() {
 }
 
 std::shared_ptr<BorrowExpression> Parser::parseBorrowExpression() {
+    // std::cerr << "BorrowExpression:" << std::endl;
+    // std::cerr << pos << std::endl;
     bool is_double = false;
     bool is_mutable = false;
     
@@ -1663,9 +1701,6 @@ std::shared_ptr<BorrowExpression> Parser::parseBorrowExpression() {
         if (peek() == Token::kAnd) {
             is_double = true;
             consume();
-        } else {
-            // Single borrow, but we need to put back the first &
-            pos--;
         }
     } else {
         throw std::runtime_error("parse failed! Expected & for borrow expression");
@@ -1677,7 +1712,7 @@ std::shared_ptr<BorrowExpression> Parser::parseBorrowExpression() {
         consume();
     }
     
-    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenLeftBP(Token::kAnd)));
+    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenUnaryBP(Token::kAnd)));
     
     return std::make_shared<BorrowExpression>(is_double, is_mutable, std::move(expression));
 }

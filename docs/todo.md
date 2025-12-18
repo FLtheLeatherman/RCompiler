@@ -1,13 +1,9 @@
-本项目是一个 Rust 子集的编译器前端实现，目前已经实现 lexer 和 parser，可以从代码生成一棵 AST 树。
+本项目是一个 Rust 子集的编译器前端实现，目前已经实现 lexer 和 parser，可以从代码生成一棵 AST 树。具体的，你应当参考 docs/lexer/README.md 和 docs/parser/README.md.
 
-我现在的需求是，实现基于 visitor 实现一个可视化工具。
+现在的任务就是重新实现 parser_test.py，直接从 sema1_result.txt 中读取标准结果，然后和我的运行结果作比较，并把比较的结果输出到 sema1_test_result.md 中。
 
-我已经实现了 visitor 作为基类的接口，在 src/parser/visitor.hpp 中。
+parser_test.py 应当能做到每次启动时，编译一遍 parser_test.cpp. (用 cmake，cd build && cmake ..，cd build && make parser_test)
 
-同时我也已经实现了 astprinter : visitr 的接口，在 src/parser/astprinter.hpp 中。
+parser_test 的用法形如：./build/parser_test array1. 你也可以直接查看 test/parser_test.cpp 了解其用法。
 
-根据这些接口完成 astprinter 的具体实现，在 src/parser/astprinter.cpp 中。
-
-你可以阅读 docs/lexer/README.md 和 docs/parser/README.md，了解项目概况；如有需要，也可以进一步阅读代码来了解结构。
-
-你可能会需要 include/parser/utils.hpp 来了解类型的声明。你可能会需要 include/parser/astnode.hpp 来了解各个具体节点是怎么实现的。
+若结果为 -1，parser_test 会抛出错误，否则就会正常终止程序。以此为根据来获得我的运行结果。
