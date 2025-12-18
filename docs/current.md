@@ -108,10 +108,16 @@ RCompiler 是一个 Rust 语言子集的 C++ 编译器实现。当前目标是�
   - 包含 expression 和 type 成员变量，支持 `expression as type` 语法
 
 #### 模式和类型节点
-- `PatternNoTopAlt`: 模式（未实现）
-- `Type`: 类型，可包含 TypePath、ReferenceType、ArrayType、UnitType（未完全实现）
-- `ReferenceType`: 引用类型（未实现）
-- `ArrayType`: 数组类型（未实现）
+- `PatternNoTopAlt`: 模式（已实现，支持 IdentifierPattern 和 ReferencePattern）
+- `IdentifierPattern`: 标识符模式（已实现）
+  - 支持引用（ref）和可变性（mut）标志
+- `ReferencePattern`: 引用模式（已实现）
+  - 支持单引用（&）、双引用（&&）和可变性（mut）
+- `Type`: 类型，可包含 TypePath、ReferenceType、ArrayType、UnitType（已实现）
+- `ReferenceType`: 引用类型（已实现）
+  - 支持可变性标志（mut）和目标类型
+- `ArrayType`: 数组类型（已实现）
+  - 包含元素类型和大小表达式
 - `UnitType`: 单元类型（已实现）
 
 #### 路径相关节点
@@ -165,7 +171,7 @@ Parser 类已定义完整的解析函数接口：
 - `parseExpressionStatement()`: 解析表达式语句
 - `parseStatements()`: 解析语句列表
 - `parseExpression()`: 解析表达式
-- `parseExpressionWithoutBlock()`: 解析无块表达式
+- `parseExpressionWithoutBlock()`: 解析无块表达式（已实现，检查不能包含 ExpressionWithBlock）
 - `parseExpressionWithBlock()`: 解析有块表达式
 - `parseBlockExpression()`: 解析块表达式，支持 `{ Statements? }` 语法
 
@@ -223,8 +229,13 @@ Parser 类已定义完整的解析函数接口：
   - `parseIndexExpressionFromInfix()`: 解析索引访问的中缀版本（传入 lhs）
 
 #### 模式和类型解析函数
-- `parsePatternNoTopAlt()`: 解析模式（仅返回 nullptr）
-- `parseType()`: 解析类型（仅返回 nullptr）
+- `parsePatternNoTopAlt()`: 解析模式（已实现，支持 IdentifierPattern 和 ReferencePattern）
+- `parseIdentifierPattern()`: 解析标识符模式（已实现，支持 `ref`? `mut`? IDENTIFIER 语法）
+- `parseReferencePattern()`: 解析引用模式（已实现，支持 ( `&` | `&&` ) `mut`? PatternNoTopAlt 语法）
+- `parseType()`: 解析类型（已实现，按顺序尝试解析 PathIdentSegment、ReferenceType、ArrayType、UnitType）
+- `parseReferenceType()`: 解析引用类型（已实现，支持 `&` `mut`? Type 语法）
+- `parseArrayType()`: 解析数组类型（已实现，支持 `[` Type `;` Expression `]` 语法）
+- `parseUnitType()`: 解析单元类型（已实现，支持 `(` `)` 语法）
 
 ### 4. 语法分析器实现（src/parser.cpp）
 已实现大部分解析功能：
@@ -280,17 +291,17 @@ Parser 类已定义完整的解析函数接口：
 - 完整的 Rust 语法子集支持
 
 ## 当前限制
-1. **表达式解析部分完成**：ExpressionWithoutBlock 的 Pratt parsing 已完全实现，但部分表达式类型（如 OperatorExpression）仍使用占位符
-2. **类型解析未完成**：parseType 函数仅返回 nullptr，需要实现完整的类型系统
-3. **模式解析未完成**：parsePatternNoTopAlt 函数仅返回 nullptr，需要实现模式匹配
+1. **表达式解析已完成**：ExpressionWithoutBlock 和 ExpressionWithBlock 的解析已完全实现，包含类型检查
+2. **类型解析已完成**：parseType 函数已实现，支持 PathIdentSegment、ReferenceType、ArrayType、UnitType
+3. **模式解析已完成**：parsePatternNoTopAlt 函数已实现，支持 IdentifierPattern 和 ReferencePattern
 4. **访问者模式未实现**：需要实现具体的访问者类（如 ASTPrinter、TypeChecker、CodeGenerator）
 
 ## 下一步工作
 1. **完善类型系统**：
-   - 实现 TypePath 解析（简单路径和泛型参数）
-   - 实现 ReferenceType 解析（引用类型 &T, &mut T）
-   - 实现 ArrayType 解析（数组类型 [T; N]）
-   - 完善 UnitType 解析（单元类型 ()）
+   - [x] 实现 TypePath 解析（简单路径和泛型参数）
+   - [x] 实现 ReferenceType 解析（引用类型 &T, &mut T）
+   - [x] 实现 ArrayType 解析（数组类型 [T; N]）
+   - [x] 完善 UnitType 解析（单元类型 ()）
 
 2. **完善模式系统**：
    - 实现字面量模式（字面量）

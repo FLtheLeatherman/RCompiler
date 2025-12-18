@@ -866,10 +866,20 @@ std::shared_ptr<Expression> Parser::parseExpression() {
     return std::make_shared<Expression>(std::move(child));
 }
 std::shared_ptr<ExpressionWithoutBlock> Parser::parseExpressionWithoutBlock() {
-    // Pratt parsing will be implemented later
-
     // 调用 parseExpression，如果返回来的类型可以被 cast 到 ExpressionWithBlock，抛出错误，否则正常运行。
-    return nullptr;
+    auto expression = parseExpression();
+    
+    // 检查返回的表达式是否可以被 cast 到 ExpressionWithBlock
+    if (std::dynamic_pointer_cast<ExpressionWithBlock>(expression)
+     || std::dynamic_pointer_cast<IfExpression>(expression)
+     || std::dynamic_pointer_cast<LoopExpression>(expression)
+     || std::dynamic_pointer_cast<BlockExpression>(expression)
+    ) {
+        throw std::runtime_error("parse failed! ExpressionWithBlock not allowed in ExpressionWithoutBlock context");
+    }
+    
+    // 如果不能 cast 到 ExpressionWithBlock，则正常运行，创建 ExpressionWithoutBlock
+    return std::make_shared<ExpressionWithoutBlock>(std::move(expression));
 }
 std::shared_ptr<ExpressionWithBlock> Parser::parseExpressionWithBlock() {
     std::shared_ptr<ASTNode> child;
@@ -910,11 +920,240 @@ std::shared_ptr<BlockExpression> Parser::parseBlockExpression() {
 }
 
 std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
+    // PatternNoTopAlt → IdentifierPattern | ReferencePattern
+    
+    // Try IdentifierPattern first: `ref`? `mut`? IDENTIFIER
+    if (peek() == Token::kIdentifier || peek() == Token::kRef || peek() == Token::kMut) {
+        auto pattern = parseIdentifierPattern();
+        if (pattern) {
+            return std::dynamic_pointer_cast<PatternNoTopAlt>(pattern);
+        }
+    }
+    
+    // Try ReferencePattern: ( `&` | `&&` ) `mut`? PatternNoTopAlt
+    if (peek() == Token::kLParenthese) {
+        size_t tmp = pos;
+        consume(); // consume '('
+        
+        bool is_double = false;
+        if (peek() == Token::kAnd) {
+            consume(); // consume first '&'
+            if (peek() == Token::kAnd) {
+                is_double = true;
+                consume(); // consume second '&'
+            } else {
+                pos = tmp; // backtrack, this wasn't a reference pattern
+                return nullptr;
+            }
+        } else {
+            pos = tmp; // backtrack, this wasn't a reference pattern
+            return nullptr;
+        }
+        
+        if (peek() != Token::kRParenthese) {
+            pos = tmp; // backtrack
+            return nullptr;
+        }
+        consume(); // consume ')'
+        
+        bool is_mutable = false;
+        if (peek() == Token::kMut) {
+            is_mutable = true;
+            consume(); // consume 'mut'
+        }
+        
+        auto pattern = parsePatternNoTopAlt();
+        if (!pattern) {
+            throw std::runtime_error("parse failed! Expected pattern after reference");
+        }
+        
+        return std::dynamic_pointer_cast<PatternNoTopAlt>(std::make_shared<ReferencePattern>(is_double, is_mutable, std::move(pattern)));
+    }
+    
     return nullptr;
 }
 
+std::shared_ptr<IdentifierPattern> Parser::parseIdentifierPattern() {
+    // IdentifierPattern → `ref`? `mut`? IDENTIFIER
+    bool is_ref = false;
+    bool is_mutable = false;
+    std::string identifier;
+    
+    // Check for 'ref'
+    if (peek() == Token::kRef) {
+        is_ref = true;
+        consume(); // consume 'ref'
+    }
+    
+    // Check for 'mut'
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume(); // consume 'mut'
+    }
+    
+    // Expect identifier
+    if (peek() == Token::kIdentifier) {
+        identifier = get_string();
+        consume(); // consume identifier
+    } else {
+        throw std::runtime_error("parse failed! Expected identifier in pattern");
+    }
+    
+    return std::make_shared<IdentifierPattern>(is_ref, is_mutable, std::move(identifier));
+}
+
+std::shared_ptr<ReferencePattern> Parser::parseReferencePattern() {
+    // ReferencePattern → ( `&` | `&&` ) `mut`? PatternNoTopAlt
+    if (peek() != Token::kLParenthese) {
+        return nullptr;
+    }
+    
+    size_t tmp = pos;
+    consume(); // consume '('
+    
+    bool is_double = false;
+    if (peek() == Token::kAnd) {
+        consume(); // consume first '&'
+        if (peek() == Token::kAnd) {
+            is_double = true;
+            consume(); // consume second '&'
+        } else {
+            // Single reference
+        }
+    } else {
+        pos = tmp; // backtrack, this wasn't a reference pattern
+        return nullptr;
+    }
+    
+    if (peek() != Token::kRParenthese) {
+        throw std::runtime_error("parse failed! Expected ')' in reference pattern");
+    }
+    consume(); // consume ')'
+    
+    bool is_mutable = false;
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume(); // consume 'mut'
+    }
+    
+    auto pattern = parsePatternNoTopAlt();
+    if (!pattern) {
+        throw std::runtime_error("parse failed! Expected pattern after reference");
+    }
+    
+    return std::make_shared<ReferencePattern>(is_double, is_mutable, std::move(pattern));
+}
+
 std::shared_ptr<Type> Parser::parseType() {
+    // Type → PathIdentSegment | ReferenceType | ArrayType | UnitType
+    std::shared_ptr<ASTNode> child;
+    
+    // Try UnitType first: `(` `)`
+    if (peek() == Token::kLParenthese) {
+        size_t tmp = pos;
+        consume();
+        if (peek() == Token::kRParenthese) {
+            consume();
+            child = std::make_shared<UnitType>();
+            return std::make_shared<Type>(std::move(child));
+        } else {
+            pos = tmp; // backtrack
+        }
+    }
+    
+    // Try ReferenceType: `&` `mut`? Type
+    if (peek() == Token::kAnd) {
+        child = parseReferenceType();
+        if (child) {
+            return std::make_shared<Type>(std::move(child));
+        }
+    }
+    
+    // Try ArrayType: `[` Type `;` Expression `]`
+    if (peek() == Token::kLSquare) {
+        child = parseArrayType();
+        if (child) {
+            return std::make_shared<Type>(std::move(child));
+        }
+    }
+    
+    // Try PathIdentSegment
+    child = parsePathIdentSegment();
+    if (child) {
+        return std::make_shared<Type>(std::move(child));
+    }
+    
+    throw std::runtime_error("parse type failed!");
     return nullptr;
+}
+
+std::shared_ptr<ReferenceType> Parser::parseReferenceType() {
+    // ReferenceType → `&` `mut`? Type
+    if (peek() != Token::kAnd) {
+        return nullptr;
+    }
+    
+    consume(); // consume '&'
+    
+    bool is_mutable = false;
+    if (peek() == Token::kMut) {
+        is_mutable = true;
+        consume(); // consume 'mut'
+    }
+    
+    auto type = parseType();
+    if (!type) {
+        throw std::runtime_error("parse failed! Expected type after reference");
+    }
+    
+    return std::make_shared<ReferenceType>(is_mutable, std::move(type));
+}
+
+std::shared_ptr<ArrayType> Parser::parseArrayType() {
+    // ArrayType → `[` Type `;` Expression `]`
+    if (peek() != Token::kLSquare) {
+        return nullptr;
+    }
+    
+    consume(); // consume '['
+    
+    auto type = parseType();
+    if (!type) {
+        throw std::runtime_error("parse failed! Expected type in array type");
+    }
+    
+    if (peek() != Token::kSemi) {
+        throw std::runtime_error("parse failed! Expected ';' in array type");
+    }
+    consume(); // consume ';'
+    
+    auto expression = std::dynamic_pointer_cast<Expression>(parseExpression());
+    if (!expression) {
+        throw std::runtime_error("parse failed! Expected expression in array type");
+    }
+    
+    if (peek() != Token::kRSquare) {
+        throw std::runtime_error("parse failed! Expected ']' in array type");
+    }
+    consume(); // consume ']'
+    
+    return std::make_shared<ArrayType>(std::move(type), std::move(expression));
+}
+
+std::shared_ptr<UnitType> Parser::parseUnitType() {
+    // UnitType → `(` `)`
+    if (peek() != Token::kLParenthese) {
+        return nullptr;
+    }
+    
+    consume(); // consume '('
+    
+    if (peek() != Token::kRParenthese) {
+        throw std::runtime_error("parse failed! Expected ')' for unit type");
+    }
+    consume(); // consume ')'
+    
+    return std::make_shared<UnitType>();
 }
 
 std::shared_ptr<PathInExpression> Parser::parsePathInExpression() {

@@ -77,8 +77,13 @@ public:
     std::shared_ptr<BlockExpression> parseBlockExpression();
 
     std::shared_ptr<PatternNoTopAlt> parsePatternNoTopAlt();
+    std::shared_ptr<IdentifierPattern> parseIdentifierPattern();
+    std::shared_ptr<ReferencePattern> parseReferencePattern();
 
     std::shared_ptr<Type> parseType();
+    std::shared_ptr<ReferenceType> parseReferenceType();
+    std::shared_ptr<ArrayType> parseArrayType();
+    std::shared_ptr<UnitType> parseUnitType();
 
     std::shared_ptr<PathInExpression> parsePathInExpression();
     std::shared_ptr<PathIdentSegment> parsePathIdentSegment();

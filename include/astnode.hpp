@@ -697,6 +697,32 @@ public:
     }
 };
 
+class IdentifierPattern : public ASTNode {
+private:
+    bool is_ref;
+    bool is_mutable;
+    std::string identifier;
+public:
+    IdentifierPattern(bool is_ref, bool is_mutable, std::string identifier)
+        : is_ref(is_ref), is_mutable(is_mutable), identifier(std::move(identifier)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
+class ReferencePattern : public ASTNode {
+private:
+    bool is_double;     // true for &&, false for &
+    bool is_mutable;
+    std::shared_ptr<PatternNoTopAlt> pattern;
+public:
+    ReferencePattern(bool is_double, bool is_mutable, std::shared_ptr<PatternNoTopAlt> pattern)
+        : is_double(is_double), is_mutable(is_mutable), pattern(std::move(pattern)) {}
+    void accept(ASTVisitor* visitor) override {
+        visitor->visit(*this);
+    }
+};
+
 class Type : public ASTNode {
 private:
     std::shared_ptr<ASTNode> child; // TypePath (PathIdentSegment), ReferenceType, ArrayType, UnitType
@@ -709,14 +735,24 @@ public:
 };
 
 class ReferenceType : public ASTNode {
+private:
+    bool is_mutable;
+    std::shared_ptr<Type> type;
 public:
+    ReferenceType(bool is_mutable, std::shared_ptr<Type> type)
+        : is_mutable(is_mutable), type(std::move(type)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
 };
 
 class ArrayType : public ASTNode {
+private:
+    std::shared_ptr<Type> type;
+    std::shared_ptr<Expression> expression;
 public:
+    ArrayType(std::shared_ptr<Type> type, std::shared_ptr<Expression> expression)
+        : type(std::move(type)), expression(std::move(expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

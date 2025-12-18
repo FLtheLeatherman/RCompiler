@@ -75,6 +75,8 @@ class Statements;
 
 /****Patterns****/
 class PatternNoTopAlt;
+class IdentifierPattern;
+class ReferencePattern;
 /****Patterns****/
 
 /****Types****/

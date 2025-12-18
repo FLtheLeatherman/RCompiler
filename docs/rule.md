@@ -10,4 +10,8 @@ parser 最后生成的 AST 树是一个树状结构，每个节点（除 Express
 
 对于 Expression 相关，我们会采用 pratt parsing 的方式。这一部分到最后可能需要修改，现在不需理会。
 
-完成修改后，请记得更新 current.md 和 plan.md.
+如果 parse 函数失败，你应当抛出异常，并且做好异常处理。
+
+暂时，你不需要进行测试。
+
+完成修改后，请记得更新 current.md 和 plan.md. 不要更新 todo.md。
