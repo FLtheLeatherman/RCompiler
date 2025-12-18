@@ -5,9 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 include_directories(include)
 
 add_executable(code
-        src/lexer.cpp
-        src/visitor.cpp
-        src/astnode.cpp
-        src/parser.cpp
+        src/lexer/lexer.cpp
+        src/parser/visitor.cpp
+        src/parser/astnode.cpp
+        src/parser/parser.cpp
         src/main.cpp
 )

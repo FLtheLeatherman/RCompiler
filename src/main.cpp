@@ -1,6 +1,6 @@
-#include "iostream"
-#include "lexer.hpp"
-#include "parser.hpp"
+#include <iostream>
+#include "lexer/lexer.hpp"
+#include "parser/parser.hpp"
 
 int main() {
     // freopen("test.in", "r", stdin);

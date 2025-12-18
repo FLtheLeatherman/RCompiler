@@ -1,4 +1,4 @@
-#include "parser.hpp"
+#include "parser/parser.hpp"
 
 Token Parser::peek() {
     if (pos < tokens.size()) return tokens[pos].first;

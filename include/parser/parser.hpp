@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
-#include "lexer.hpp"
-#include "astnode.hpp"
+#include "lexer/lexer.hpp"
+#include "parser/astnode.hpp"
 
 class Parser {
 private:

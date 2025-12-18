@@ -2,8 +2,8 @@
 
 #include <vector>
 #include <memory>
-#include "utils.hpp"
-#include "visitor.hpp"
+#include "parser/utils.hpp"
+#include "parser/visitor.hpp"
 
 class ASTNode {
 public:

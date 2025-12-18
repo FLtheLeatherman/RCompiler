@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "lexer/lexer.hpp"
 
 std::vector<std::pair<Token, std::string>> Lexer::lex(std::string str) {
     std::vector<std::pair<Token, std::string>> res;
