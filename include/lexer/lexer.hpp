@@ -139,7 +139,7 @@ private:
         {Token::kRef, std::regex("ref")},
         {Token::kReturn, std::regex("return")},
         {Token::kSelf, std::regex("self")},
-        {Token::kSelf, std::regex("Self")},
+        {Token::kSelf_, std::regex("Self")},
         {Token::kStatic, std::regex("static")},
         {Token::kStruct, std::regex("struct")},
         {Token::kSuper, std::regex("super")},
