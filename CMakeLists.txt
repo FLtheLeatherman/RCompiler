@@ -13,6 +13,9 @@ add_executable(code
         src/parser/astnode.cpp
         src/parser/parser.cpp
         src/parser/astprinter.cpp
+        src/semantic/symbol.cpp
+        src/semantic/scope.cpp
+        src/semantic/symbol_collector.cpp
         src/main.cpp
 )
 

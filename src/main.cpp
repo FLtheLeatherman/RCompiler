@@ -4,7 +4,7 @@
 #include "parser/astprinter.hpp"
 
 int main() {
-    freopen("test.in", "r", stdin);
+    // freopen("test.in", "r", stdin);
     // freopen("test.out", "w", stdout);
     std::string code;
     char ch = getchar();
