@@ -1,5 +1,6 @@
 #include "semantic/scope.hpp"
 #include "semantic/symbol.hpp"
+#include "semantic/const_value.hpp"
 #include <iostream>
 #include <iomanip>
 

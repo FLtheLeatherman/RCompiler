@@ -1,17 +1,17 @@
-本项目是一个 Rust 子集的编译器前端实现，目前已经实现 lexer 和 parser，可以从代码生成一棵 AST 树。具体的，你应当参考 docs/lexer/README.md 和 docs/parser/README.md.
+本项目是一个 Rust 子集的编译器前端实现，目前已经实现 lexer 和 parser，可以从代码生成一棵 AST 树。具体的，你应当参考 docs/lexer/README.md 和 docs/parser/README.md. 同时，我们已经完成了 semantic 中初步的符号收集的基础部分，具体可以参考 docs/semantic/symbol.md.
 
-现在我将开始实现语义检查部分。我们将根据以下提示进行开展：
+然后，我完成了 struct 相关字段、方法和函数的检查. 具体的，我修改了 StructSymbol 的实现，完成了 StructChecker。具体步骤如下：
 
-第一步：首先是符号收集。你需要检查 BlockExpression 下的所有 item 和所有 stmt（这是为了遍历到每一个 BlockExpression），将以下几项内容的信息记录在 scope 节点中（这一步先假定函数、const item 用到的类型都存在）：
+我们把所有 associated item 都存入 struct 中，也因此对 StructSymbol 进行改造。改造之后，它当中可以存储所有的：原本的 struct field 中的内容，以及 impl 中的 const item，和 function，其中 function 被区分为 方法 和 普通的函数。这个可以参考 semantic/symbol.hpp 和 semantic/symbol.cpp.
 
-const item 及其类型（先假定类型和值匹配）
-struct 以及它所有的字段+类型
-enum 及其 variants
-函数/关联函数的参数 pattern 类型/顺序、返回类型
-trait 及其所有关联 const 和关联函数
+在每个 scope，构建具体的 struct 的字段、方法和函数的信息。
 
-同时建立 Scope 节点之间的连接，为后面的 name resolution 提供方便。注意任何 Expr 中都有可能出现 BlockExpression，所以需要完整遍历 AST。
+对于 struct 中的字段、 impl/ trait 中的关联函数参数和返回值 / 关联const，以及任何用到类型的地方，检查类型是否存在/可见。
 
-根据以上的描述，symbol 相关设施已经完成。
+对于 impl ，先寻找它所对应的 struct 类型和 trait （如果是某个 trait 的 impl），然后在那个 struct 中添加 associated item ；同时检查 trait 中未定义的 associated items 是否全部实现。
 
-接下来，你需要完善 semantic/scope.hpp 中 Scope 类的相关接口和函数实现。
+如果在当前 scope 或它的所有 parent scope 中找不到这个 const /struct / trait，报错 Undefined Name。（throw std::runtime_error("Undefined Name");）
+
+依据上述内容，我实现了 StructChecker 类，具体可以参考 semantic/struct_checker.hpp 和 semantic/struct_checker.cpp.
+
+现在，你的任务是读取我的代码文件，不修改代码，然后仅更新文档：docs/semantic/symbol.md，并创建 docs/semantic/struct_checker.md，描述目前做了什么事情。

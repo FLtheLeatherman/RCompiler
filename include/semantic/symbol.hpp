@@ -5,6 +5,10 @@
 #include <vector>
 #include <memory>
 
+// 前向声明
+class ConstValue;
+class FuncSymbol;
+
 using SymbolType = std::string;
 
 class Symbol {
@@ -19,11 +23,14 @@ public:
 class ConstSymbol : public Symbol {
 private:
     std::string identifier;
-    // ConstValue value;
-    // not yet implemented
+    std::shared_ptr<ConstValue> value;
 public:
     ConstSymbol(const std::string& identifier, const SymbolType& type);
+    ConstSymbol(const std::string& identifier, const SymbolType& type, std::shared_ptr<ConstValue> value);
     std::string getIdentifier() const;
+    std::shared_ptr<ConstValue> getValue() const;
+    void setValue(std::shared_ptr<ConstValue> value);
+    bool hasValue() const;
 };
 
 class VariableSymbol : public Symbol {
@@ -42,11 +49,29 @@ class StructSymbol : public Symbol {
 private:
     std::string identifier;
     std::vector<std::shared_ptr<VariableSymbol>> vars;
+    std::vector<std::shared_ptr<ConstSymbol>> associated_consts;
+    std::vector<std::shared_ptr<FuncSymbol>> methods;      // 带 self 参数的方法
+    std::vector<std::shared_ptr<FuncSymbol>> functions;    // 不带 self 参数的关联函数
 public:
     StructSymbol(const std::string& identifier, const SymbolType& type);
     std::string getIdentifier() const;
     void addField(std::shared_ptr<VariableSymbol> field);
     const std::vector<std::shared_ptr<VariableSymbol>>& getFields() const;
+    
+    // 关联常量管理
+    void addAssociatedConst(std::shared_ptr<ConstSymbol> const_symbol);
+    const std::vector<std::shared_ptr<ConstSymbol>>& getAssociatedConsts() const;
+    
+    // 方法管理（带 self 参数）
+    void addMethod(std::shared_ptr<FuncSymbol> method);
+    const std::vector<std::shared_ptr<FuncSymbol>>& getMethods() const;
+    
+    // 关联函数管理（不带 self 参数）
+    void addAssociatedFunction(std::shared_ptr<FuncSymbol> function);
+    const std::vector<std::shared_ptr<FuncSymbol>>& getAssociatedFunctions() const;
+    
+    // 获取所有关联项（方法 + 关联函数）
+    std::vector<std::shared_ptr<FuncSymbol>> getAllAssociatedFunctions() const;
 };
 
 class EnumVar {
@@ -95,4 +120,20 @@ public:
     void addAssociatedFunction(std::shared_ptr<FuncSymbol> func);
     const std::vector<std::shared_ptr<ConstSymbol>>& getConstSymbols() const;
     const std::vector<std::shared_ptr<FuncSymbol>>& getAssociatedFunctions() const;
+};
+
+class ArraySymbol : public Symbol {
+private:
+    std::string identifier;
+    std::string element_type;
+    std::shared_ptr<ConstValue> length;
+public:
+    ArraySymbol(const std::string& identifier, const std::string& element_type);
+    ArraySymbol(const std::string& identifier, const std::string& element_type, std::shared_ptr<ConstValue> length);
+    std::string getIdentifier() const;
+    std::string getElementType() const;
+    void setElementType(const std::string& element_type);
+    std::shared_ptr<ConstValue> getLength() const;
+    void setLength(std::shared_ptr<ConstValue> length);
+    bool hasLength() const;
 };

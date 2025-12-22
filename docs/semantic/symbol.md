@@ -1,327 +1,442 @@
-# 符号类型枚举
+# 符号系统实现文档
 
-本文档详细列举了在 Rust 子集编译器中需要收集的所有符号类型，为符号收集阶段提供完整的参考。
+## 概述
 
-## 符号分类体系
+本文档描述了 Rust 子集编译器中符号系统的实现。该系统为语义分析阶段的符号收集提供了基础支持。
 
-### 1. 声明类符号 (Declaration Symbols)
+## 实现的组件
 
-#### 1.1 顶级声明 (Top-level Declarations)
+### 1. 符号类型 (Symbol Types)
 
-##### 函数符号 (Function Symbols)
-- **位置**: [`Function`](include/parser/astnode.hpp:40) 节点
-- **标识符**: `function.identifier`
-- **符号信息**:
-  - 函数名
-  - 是否为 const 函数 (`function.is_const`)
-  - 参数列表 (`function.function_parameters`)
-  - 返回类型 (`function.function_return_type`)
-  - 函数体 (`function.block_expression`)
-- **作用域**: 全局作用域或 impl/trait 作用域
-- **示例**:
-  ```rust
-  fn add(x: i32, y: i32) -> i32 { x + y }
-  const fn const_add(x: i32, y: i32) -> i32 { x + y }
-  ```
+#### 基类 Symbol
+- **位置**: [`include/semantic/symbol.hpp`](include/semantic/symbol.hpp:10)
+- **功能**: 所有符号类型的基类，提供基本的类型信息
+- **主要方法**:
+  - `Symbol(const SymbolType& type)`: 构造函数
+  - `SymbolType getType()`: 获取符号类型
 
-##### 结构体符号 (Struct Symbols)
-- **位置**: [`Struct`](include/parser/astnode.hpp:63) -> [`StructStruct`](include/parser/astnode.hpp:197) 节点
-- **标识符**: `struct_struct.identifier`
-- **符号信息**:
-  - 结构体名
-  - 字段列表 (`struct_struct.struct_fields`)
-- **作用域**: 全局作用域
-- **示例**:
-  ```rust
-  struct Point {
-      x: i32,
-      y: i32,
-  }
-  ```
+#### ConstSymbol
+- **功能**: 表示常量符号
+- **属性**: 标识符、类型
+- **主要方法**:
+  - `getIdentifier()`: 获取常量名
 
-##### 枚举符号 (Enum Symbols)
-- **位置**: [`Enumeration`](include/parser/astnode.hpp:74) 节点
-- **标识符**: `enumeration.identifier`
-- **符号信息**:
-  - 枚举名
-  - 变体列表 (`enumeration.enum_variants`)
-- **作用域**: 全局作用域
-- **示例**:
-  ```rust
-  enum Color {
-      Red,
-      Green,
-      Blue,
-  }
-  ```
+#### VariableSymbol
+- **功能**: 表示变量符号（包括函数参数和局部变量）
+- **属性**: 标识符、类型、是否为引用、是否可变
+- **主要方法**:
+  - `getIdentifier()`: 获取变量名
+  - `isRef()`: 检查是否为引用
+  - `isMut()`: 检查是否可变
 
-##### 常量符号 (Constant Symbols)
-- **位置**: [`ConstantItem`](include/parser/astnode.hpp:86) 节点
-- **标识符**: `constant_item.identifier`
-- **符号信息**:
-  - 常量名
-  - 类型 (`constant_item.type`)
-  - 初始值 (`constant_item.expression`)
-- **作用域**: 全局作用域或 trait/impl 作用域
-- **示例**:
-  ```rust
-  const MAX_SIZE: usize = 1024;
-  ```
-
-##### 特征符号 (Trait Symbols)
-- **位置**: [`Trait`](include/parser/astnode.hpp:99) 节点
-- **标识符**: `trait.identifier`
-- **符号信息**:
-  - 特征名
-  - 关联项列表 (`trait.associated_item`)
-- **作用域**: 全局作用域
-- **示例**:
-  ```rust
-  trait Drawable {
-      fn draw(&self);
-      const DEFAULT_COLOR: Color;
-  }
-  ```
-
-##### 实现符号 (Implementation Symbols)
-- **位置**: [`Implementation`](include/parser/astnode.hpp:111) 节点
-- **类型**: [`InherentImpl`](include/parser/astnode.hpp:265) 或 [`TraitImpl`](include/parser/astnode.hpp:276)
-- **符号信息**:
-  - 实现的类型 (`impl.type`)
-  - 对于特征实现：特征名 (`trait_impl.identifier`)
-  - 关联项列表 (`impl.associated_item`)
-- **作用域**: 创建新的 impl 作用域
-- **示例**:
-  ```rust
-  // 固有实现
-  impl Point {
-      fn new(x: i32, y: i32) -> Self { Point { x, y } }
-  }
+#### StructSymbol
+- **功能**: 表示结构体符号，支持存储所有关联项（associated items）
+- **属性**: 标识符、类型、字段列表、关联常量列表、方法列表、关联函数列表
+- **主要方法**:
+  - `getIdentifier()`: 获取结构体名
+  - `addField()`: 添加字段
+  - `getFields()`: 获取所有字段
   
-  // 特征实现
-  impl Drawable for Point {
-      fn draw(&self) { /* ... */ }
-      const DEFAULT_COLOR: Color = Color::Black;
-  }
-  ```
-
-#### 1.2 关联项符号 (Associated Item Symbols)
-
-##### 关联常量符号 (Associated Constant Symbols)
-- **位置**: [`AssociatedItem`](include/parser/astnode.hpp:254) -> [`ConstantItem`](include/parser/astnode.hpp:86)
-- **标识符**: `constant_item.identifier`
-- **符号信息**:
-  - 常量名
-  - 类型
-  - 初始值（如果在 trait 中可能为空）
-- **作用域**: trait 或 impl 作用域
-- **示例**:
-  ```rust
-  trait Math {
-      const PI: f64;
-  }
+  - **关联常量管理**:
+    - `addAssociatedConst()`: 添加关联常量（来自 impl 块中的 const item）
+    - `getAssociatedConsts()`: 获取所有关联常量
   
-  impl Math for f64 {
-      const PI: f64 = 3.14159;
-  }
-  ```
-
-##### 关联函数符号 (Associated Function Symbols)
-- **位置**: [`AssociatedItem`](include/parser/astnode.hpp:254) -> [`Function`](include/parser/astnode.hpp:40)
-- **标识符**: `function.identifier`
-- **符号信息**:
-  - 函数名
-  - 参数列表（可能包含 self 参数）
-  - 返回类型
-- **作用域**: trait 或 impl 作用域
-- **示例**:
-  ```rust
-  trait Clone {
-      fn clone(&self) -> Self;
-  }
+  - **方法管理**（带 self 参数）:
+    - `addMethod()`: 添加方法（带 self 参数的函数）
+    - `getMethods()`: 获取所有方法
   
-  impl Clone for Point {
-      fn clone(&self) -> Self { Point { x: self.x, y: self.y } }
-  }
-  ```
-
-### 2. 变量类符号 (Variable Symbols)
-
-#### 2.1 函数参数符号 (Function Parameter Symbols)
-
-##### Self 参数符号 (Self Parameter Symbols)
-- **位置**: [`FunctionParameters`](include/parser/astnode.hpp:121) -> [`SelfParam`](include/parser/astnode.hpp:133)
-- **类型**: [`ShorthandSelf`](include/parser/astnode.hpp:144) 或 [`TypedSelf`](include/parser/astnode.hpp:156)
-- **符号信息**:
-  - `self`, `&self`, `&mut self`, `self: Type`, `&self: Type`, `&mut self: Type`
-- **作用域**: 函数作用域
-- **示例**:
-  ```rust
-  impl Point {
-      fn method1(self) { /* ... */ }           // by value
-      fn method2(&self) { /* ... */ }          // by reference
-      fn method3(&mut self) { /* ... */ }      // by mutable reference
-      fn method4(self: Box<Self>) { /* ... */ } // explicit type
-  }
-  ```
-
-##### 普通参数符号 (Regular Parameter Symbols)
-- **位置**: [`FunctionParameters`](include/parser/astnode.hpp:121) -> [`FunctionParam`](include/parser/astnode.hpp:170)
-- **标识符**: 从 [`PatternNoTopAlt`](include/parser/astnode.hpp:701) 中提取
-- **符号信息**:
-  - 参数名
-  - 参数类型 (`function_param.type`)
-- **作用域**: 函数作用域
-- **示例**:
-  ```rust
-  fn process(x: i32, y: String, z: &mut Vec<i32>) { /* ... */ }
-  // 参数符号: x (i32), y (String), z (&mut Vec<i32>)
-  ```
-
-#### 2.2 局部变量符号 (Local Variable Symbols)
-
-##### Let 绑定符号 (Let Binding Symbols)
-- **位置**: [`LetStatement`](include/parser/astnode.hpp:300) 节点
-- **标识符**: 从 [`PatternNoTopAlt`](include/parser/astnode.hpp:701) 中提取
-- **符号信息**:
-  - 变量名
-  - 类型注解 (`let_statement.type`，可选）
-  - 初始值 (`let_statement.expression`，可选)
-- **作用域**: 当前块作用域
-- **示例**:
-  ```rust
-  let x = 42;                    // x: i32 (推断)
-  let y: String = "hello".to_string();  // y: String (显式)
-  let (a, b) = (1, 2);          // a: i32, b: i32 (模式匹配)
-  let ref z = x;                 // z: &i32 (引用模式)
-  ```
-
-##### 模式绑定符号 (Pattern Binding Symbols)
-- **位置**: 各种模式节点中
-- **类型**: [`IdentifierPattern`](include/parser/astnode.hpp:712), [`ReferencePattern`](include/parser/astnode.hpp:725)
-- **符号信息**:
-  - 绑定名
-  - 是否为引用 (`is_ref`)
-  - 是否可变 (`is_mutable`)
-- **作用域**: 当前块作用域
-- **示例**:
-  ```rust
-  let x = 42;                    // IdentifierPattern
-  let ref y = x;                 // ReferencePattern -> IdentifierPattern
-  let &mut z = &mut value;       // ReferencePattern -> IdentifierPattern
-  ```
-
-### 3. 结构体字段符号 (Struct Field Symbols)
-
-#### 3.1 结构体字段定义符号
-- **位置**: [`StructField`](include/parser/astnode.hpp:220) 节点
-- **标识符**: `struct_field.identifier`
-- **符号信息**:
-  - 字段名
-  - 字段类型 (`struct_field.type`)
-- **作用域**: 结构体定义内部（特殊的符号空间）
-- **示例**:
-  ```rust
-  struct Person {
-      name: String,      // 字段符号: name (String)
-      age: u32,          // 字段符号: age (u32)
-      address: Option<String>, // 字段符号: address (Option<String>)
-  }
-  ```
-
-### 4. 枚举变体符号 (Enum Variant Symbols)
-
-#### 4.1 枚举变体定义符号
-- **位置**: [`EnumVariant`](include/parser/astnode.hpp:243) 节点
-- **标识符**: `enum_variant.identifier`
-- **符号信息**:
-  - 变体名
-  - 变体类型（当前实现中为简单变体，无数据）
-- **作用域**: 枚举定义内部
-- **示例**:
-  ```rust
-  enum Status {
-      Active,      // 变体符号: Active
-      Inactive,    // 变体符号: Inactive
-      Pending,     // 变体符号: Pending
-  }
-  ```
-
-### 5. 特殊符号 (Special Symbols)
-
-#### 5.1 Self 类型符号
-- **位置**: impl 块中
-- **符号信息**:
-  - Self 类型定义
-  - 在 trait impl 中，Self 指代实现该 trait 的类型
-- **作用域**: impl 作用域
-- **示例**:
-  ```rust
-  impl Point {
-      fn new() -> Self { Point { x: 0, y: 0 } }  // Self 指代 Point
-  }
+  - **关联函数管理**（不带 self 参数）:
+    - `addAssociatedFunction()`: 添加关联函数（不带 self 参数的函数）
+    - `getAssociatedFunctions()`: 获取所有关联函数
   
-  impl Clone for Point {
-      fn clone(&self) -> Self { /* ... */ }      // Self 指代 Point
-  }
-  ```
+  - `getAllAssociatedFunctions()`: 获取所有关联项（方法 + 关联函数）
 
-#### 5.2 内置类型符号 (Built-in Type Symbols)
-- **位置**: 预定义
-- **符号信息**:
-  - 基础类型：i32, u32, f64, bool, char, str
-  - 容器类型：Box, Vec, Option, Result
-  - 引用类型：&, &mut
-- **作用域**: 全局预定义作用域
-- **示例**:
-  ```rust
-  let x: i32 = 42;        // i32 是内置类型
-  let y: Vec<String>;     // Vec 是内置类型
-  let z: Option<i32>;     // Option 是内置类型
-  ```
+#### EnumVar & EnumSymbol
+- **功能**: 表示枚举变体和枚举符号
+- **属性**: 标识符、变体列表
+- **主要方法**:
+  - `getIdentifier()`: 获取标识符
+  - `addVariant()`: 添加变体
+  - `getVariants()`: 获取所有变体
 
-## 符号属性总结
+#### FuncSymbol
+- **功能**: 表示函数符号
+- **属性**: 标识符、返回类型、是否为常量函数、参数列表
+- **主要方法**:
+  - `getIdentifier()`: 获取函数名
+  - `isConst()`: 检查是否为常量函数
+  - `addParameter()`: 添加参数
+  - `getParameters()`: 获取所有参数
+  - `getReturnType()`: 获取返回类型
 
-每个符号需要记录以下属性：
+#### TraitSymbol
+- **功能**: 表示特征符号
+- **属性**: 标识符、关联常量列表、关联函数列表
+- **主要方法**:
+  - `getIdentifier()`: 获取特征名
+  - `addConstSymbol()`: 添加关联常量
+  - `addAssociatedFunction()`: 添加关联函数
+  - `getConstSymbols()`: 获取所有关联常量
+  - `getAssociatedFunctions()`: 获取所有关联函数
 
-### 基本属性
-- **名称** (name): 符号的标识符
-- **类型** (type): 符号的类型信息
-- **种类** (kind): 符号的种类（函数、变量、结构体等）
-- **作用域** (scope): 符号所属的作用域
-- **可见性** (visibility): 符号的可见性（pub, private 等）
+### 2. 常量值系统 (ConstValue System)
 
-### 位置信息
-- **定义位置** (definition_location): 源码中的位置
-- **声明节点** (declaration_node): 对应的 AST 节点
+注意，ConstValue 应当在常量求值部分再进行深度处理，此处仅进行符号的收集。
 
-### 特殊属性
-- **可变性** (mutability): 对于变量符号
-- **常量性** (constness): 对于函数和常量
-- **参数列表** (parameters): 对于函数符号
-- **返回类型** (return_type): 对于函数符号
-- **字段列表** (fields): 对于结构体符号
-- **变体列表** (variants): 对于枚举符号
-- **Self 类型** (self_type): 对于 impl 块
+#### ConstValue 基类
+- **位置**: [`include/semantic/const_value.hpp`](include/semantic/const_value.hpp:8)
+- **功能**: 所有常量值的基类，记录对应的 AST 节点指针
+- **主要方法**:
+  - `getExpressionNode()`: 获取对应的 AST 节点
+  - `getValueType()`: 获取值的类型（纯虚函数）
+  - `toString()`: 获取字符串表示（纯虚函数）
+  - `isInt()`, `isBool()`, `isChar()`, `isString()`, `isStruct()`, `isEnum()`: 类型检查方法
 
-## 符号收集策略
+#### ConstValue 派生类
 
-### 按作用域收集
-1. **全局作用域**: 顶级函数、结构体、枚举、常量、特征
-2. **函数作用域**: 函数参数、局部变量
-3. **块作用域**: let 绑定、嵌套块中的符号
-4. **特征作用域**: 关联函数、关联常量
-5. **实现作用域**: 关联函数、关联常量、Self 类型
-6. **循环作用域**: 循环特有的符号（如循环变量）
+**ConstValueInt**: 整型常量值
+- **功能**: 表示整型常量
+- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isInt()`
 
-### 按遍历顺序收集
-1. 首先收集类型定义（结构体、枚举、特征）
-2. 然后收集函数签名（不包括函数体）
-3. 最后收集函数体和块中的局部符号
+**ConstValueBool**: 布尔常量值
+- **功能**: 表示布尔常量
+- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isBool()`
 
-### 处理重复定义
-- 同一作用域内的重复定义应报错
-- 不同作用域的同名符号允许存在（遮蔽）
-- 内层作用域的符号遮蔽外层作用域的同名符号
+**ConstValueChar**: 字符常量值
+- **功能**: 表示字符常量
+- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isChar()`
 
-这个符号类型枚举为符号收集阶段提供了完整的参考，确保不会遗漏任何需要收集的符号信息。
+**ConstValueString**: 字符串常量值
+- **功能**: 表示字符串常量
+- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isString()`
+
+**ConstValueStruct**: 结构体常量值
+- **功能**: 表示结构体常量，存储所有字段内容
+- **主要方法**:
+  - `getStructName()`, `setStructName()`: 结构体名称管理
+  - `setField()`, `getField()`, `hasField()`, `getFields()`: 字段管理
+  - `getValueType()`, `toString()`, `isStruct()`
+
+**ConstValueEnum**: 枚举常量值
+- **功能**: 表示枚举常量
+- **主要方法**:
+  - `getEnumName()`, `setEnumName()`: 枚举名称管理
+  - `getVariantName()`, `setVariantName()`: 变体名称管理
+  - `getValueType()`, `toString()`, `isEnum()`
+
+#### 辅助函数
+- `createConstValueFromExpression()`: 从表达式节点创建对应的 ConstValue
+
+### 3. 作用域管理 (Scope Management)
+
+#### Scope 类
+- **位置**: [`include/semantic/scope.hpp`](include/semantic/scope.hpp:19)
+- **功能**: 管理作用域层次结构和分类符号表
+- **继承**: 继承自 `std::enable_shared_from_this<Scope>` 以支持共享指针管理
+- **作用域类型**:
+  - `GLOBAL`: 全局作用域
+  - `BLOCK`: 块作用域
+  - `FUNCTION`: 函数作用域
+  - `TRAIT`: 特征作用域
+  - `IMPL`: 实现作用域
+  - `LOOP`: 循环作用域
+
+- **分类符号表设计**: 使用独立的哈希表管理不同类型的符号，避免名称冲突和提高查找效率
+
+#### 主要方法
+
+**基本访问器**:
+- `getType()`: 获取作用域类型
+- `getParent()`: 获取父作用域
+- `getChildren()`: 获取所有子作用域
+
+**作用域层次结构管理**:
+- `addChild()`: 添加子作用域
+- `setParent()`: 设置父作用域
+
+**分类符号管理**:
+- **常量符号**: `addConstSymbol()`, `getConstSymbol()`, `hasConstSymbol()`, `getConstSymbols()`
+- **结构体符号**: `addStructSymbol()`, `getStructSymbol()`, `hasStructSymbol()`, `getStructSymbols()`
+- **枚举符号**: `addEnumSymbol()`, `getEnumSymbol()`, `hasEnumSymbol()`, `getEnumSymbols()`
+- **函数符号**: `addFuncSymbol()`, `getFuncSymbol()`, `hasFuncSymbol()`, `getFuncSymbols()`
+- **特征符号**: `addTraitSymbol()`, `getTraitSymbol()`, `hasTraitSymbol()`, `getTraitSymbols()`
+
+**作用域链查找**:
+- `findSymbol()`: 在作用域链中查找常量符号
+- `findStructSymbol()`: 在作用域链中查找结构体符号
+- `findEnumSymbol()`: 在作用域链中查找枚举符号
+- `findFuncSymbol()`: 在作用域链中查找函数符号
+- `findTraitSymbol()`: 在作用域链中查找特征符号
+
+**符号存在性检查**:
+- `symbolExists()`: 检查常量符号是否存在于作用域链中
+- `structSymbolExists()`: 检查结构体符号是否存在于作用域链中
+- `enumSymbolExists()`: 检查枚举符号是否存在于作用域链中
+- `funcSymbolExists()`: 检查函数符号是否存在于作用域链中
+- `traitSymbolExists()`: 检查特征符号是否存在于作用域链中
+
+**当前作用域操作**:
+- `getSymbolInCurrentScope()`: 仅在当前作用域查找符号
+- `hasSymbolInCurrentScope()`: 检查当前作用域中是否存在符号
+
+**调试和工具**:
+- `printScope()`: 打印作用域层次结构和符号信息
+- `getTotalSymbolCount()`: 获取作用域树中的总符号数量
+
+## 特性
+
+### 1. 作用域链查找
+- 符号查找遵循作用域链规则：当前作用域 → 父作用域 → 祖父作用域 → ... → 全局作用域
+- 支持符号遮蔽：内层作用域的符号可以遮蔽外层作用域的同名符号
+
+### 2. 类型安全
+- 使用 `std::shared_ptr` 进行内存管理，避免内存泄漏
+- 强类型系统确保编译时类型安全
+
+### 3. 扩展性
+- 基于继承的设计，易于添加新的符号类型
+- 模块化设计，便于维护和扩展
+
+## 测试
+
+### 基础符号系统测试
+测试文件位于 [`test/symbol_test.cpp`](test/symbol_test.cpp:1)，包含：
+
+1. **符号类型测试**: 验证所有符号类型的构造和基本功能
+2. **作用域管理测试**: 验证作用域层次结构和符号查找功能
+
+### SymbolCollector 测试
+测试文件位于 [`test/symbol_collector_test.cpp`](test/symbol_collector_test.cpp:1)，包含：
+
+1. **AST 构建**: 创建包含常量、结构体、枚举、函数的测试 AST
+2. **符号收集验证**: 验证 SymbolCollector 正确收集所有类型的符号
+3. **作用域层次验证**: 验证作用域层次结构的正确建立
+4. **符号查找测试**: 验证符号查找功能的正确性
+
+#### 测试覆盖的符号类型
+- ✅ 常量符号：`MAX: i32`
+- ✅ 结构体符号：`Point { x: i32, y: i32 }`
+- ✅ 枚举符号：`Color { Red, Green, Blue }`
+- ✅ 函数符号：`add(a: i32, b: i32) -> i32`
+- ✅ 局部变量符号：`result: i32`
+
+#### 测试覆盖的作用域类型
+- ✅ 全局作用域 (GLOBAL)
+- ✅ 函数作用域 (FUNCTION)
+- ✅ 块作用域 (BLOCK)
+
+### 运行测试
+
+#### 基础符号系统测试
+```bash
+cd build
+g++ -std=c++17 -I../include ../test/symbol_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp -o symbol_test
+./symbol_test
+```
+
+#### SymbolCollector 测试
+```bash
+cd build
+g++ -std=c++17 -I../include ../test/symbol_collector_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp ../src/semantic/symbol_collector.cpp ../src/semantic/const_value.cpp -o symbol_collector_test
+./symbol_collector_test
+```
+
+#### 增强功能测试
+```bash
+cd build
+g++ -std=c++17 -I../include ../test/symbol_collector_enhanced_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp ../src/semantic/symbol_collector.cpp ../src/semantic/const_value.cpp ../src/parser/astnode.cpp -o symbol_collector_enhanced_test
+./symbol_collector_enhanced_test
+```
+
+#### 测试输出示例
+```
+=== 测试 SymbolCollector ===
+Visiting Crate, creating global scope
+Visiting Constant: MAX
+Visiting Struct: Point
+Visiting Enum: Color
+Visiting Function: add
+Visiting BlockExpression
+Visiting LetStatement
+
+=== 符号收集结果 ===
+Scope Type: GLOBAL
+Constants:
+  MAX: i32
+Structs:
+  Point: Point
+Enums:
+  Color: Color
+Functions:
+  add: function -> i32
+Child scope:
+  Scope Type: FUNCTION
+  Constants:
+    b: i32
+    a: i32
+  Child scope:
+    Scope Type: BLOCK
+    Constants:
+      result: i32
+
+=== 符号统计 ===
+总符号数量: 7
+
+=== 符号查找测试 ===
+查找 MAX: 找到
+  类型: i32
+查找 Point: 找到
+  类型: Point
+  字段数量: 2
+查找 Color: 找到
+  类型: Color
+  变体数量: 3
+查找 add: 找到
+  返回类型: i32
+  参数数量: 2
+
+=== 测试完成 ===
+```
+
+## 编译验证
+
+整个项目已通过编译验证：
+```bash
+cd build
+make
+```
+
+### 3. 符号收集器 (SymbolCollector)
+
+#### SymbolCollector 类
+- **位置**: [`include/semantic/symbol_collector.hpp`](include/semantic/symbol_collector.hpp:8)
+- **实现**: [`src/semantic/symbol_collector.cpp`](src/semantic/symbol_collector.cpp:1)
+- **功能**: 继承自 ASTVisitor，负责遍历 AST 并构建符号表和作用域层次结构
+
+#### 主要成员
+- `current_scope`: 当前活动的作用域指针
+- `root_scope`: 根作用域（全局作用域）指针
+
+#### 辅助方法
+- `typeToString(std::shared_ptr<Type> type)`: 将 Type 节点转换为字符串表示
+- `createVariableSymbolFromPattern()`: 从模式匹配节点创建变量符号
+- `getRootScope()`: 获取根作用域
+
+#### 符号收集功能
+
+**顶层符号收集**:
+- [`visit(Crate&)`](src/semantic/symbol_collector.cpp:35): 创建全局作用域，遍历所有顶层项
+- [`visit(Item&)`](src/semantic/symbol_collector.cpp:49): 访问单个项
+
+**声明类符号收集**:
+- [`visit(Function&)`](src/semantic/symbol_collector.cpp:53): 收集函数符号，创建函数作用域，处理参数和返回类型
+- [`visit(Struct&)`](src/semantic/symbol_collector.cpp:120): 访问结构体定义
+- [`visit(StructStruct&)`](src/semantic/symbol_collector.cpp:125): 收集结构体符号和字段信息
+- [`visit(Enumeration&)`](src/semantic/symbol_collector.cpp:165): 收集枚举符号和变体
+- [`visit(ConstantItem&)`](src/semantic/symbol_collector.cpp:207): 收集常量符号，（暂不）支持 ConstValue 集成
+- [`visit(Trait&)`](src/semantic/symbol_collector.cpp:218): 收集特征符号和关联项，创建特征作用域
+- [`visit(Implementation&)`](src/semantic/symbol_collector.cpp:260): 访问实现块
+- [`visit(InherentImpl&)`](src/semantic/symbol_collector.cpp:265): 处理固有实现，创建实现作用域
+- [`visit(TraitImpl&)`](src/semantic/symbol_collector.cpp:285): 处理特征实现
+
+**语句和表达式符号收集**:
+- [`visit(BlockExpression&)`](src/semantic/symbol_collector.cpp:340): 创建块作用域，处理局部变量
+- [`visit(LetStatement&)`](src/semantic/symbol_collector.cpp:461): 收集局部变量符号，支持数组类型处理
+- [`visit(LoopExpression&)`](src/semantic/symbol_collector.cpp:405): 处理循环表达式
+- [`visit(InfiniteLoopExpression&)`](src/semantic/symbol_collector.cpp:410): 创建循环作用域
+- [`visit(PredicateLoopExpression&)`](src/semantic/symbol_collector.cpp:428): 处理条件循环
+
+**完整 AST 遍历**:
+实现了所有必要的 visit 方法，确保能够完整遍历 AST，包括：
+- 所有表达式类型（字面量、运算符、调用、访问等）
+- 所有语句类型（let、表达式语句等）
+- 所有模式匹配类型
+- 所有类型定义
+
+#### 作用域建立规则
+
+1. **全局作用域**: 在 `visit(Crate&)` 中创建，包含所有顶层符号
+2. **函数作用域**: 在 `visit(Function&)` 中创建，包含函数参数
+3. **块作用域**: 在 `visit(BlockExpression&)` 中创建，包含局部变量
+4. **特征作用域**: 在 `visit(Trait&)` 中创建，包含关联项
+5. **实现作用域**: 在 `visit(InherentImpl&)` 和 `visit(TraitImpl&)` 中创建
+6. **循环作用域**: 在 `visit(InfiniteLoopExpression&)` 和 `visit(PredicateLoopExpression&)` 中创建
+
+#### 符号收集策略
+
+- **常量项**: 收集标识符和类型信息，存储在当前作用域的常量表中
+- **结构体**: 收集结构体名和字段信息，字段作为 VariableSymbol 存储
+- **枚举**: 收集枚举名和所有变体
+- **函数**: 收集函数名、参数列表、返回类型，参数作为 VariableSymbol 存储在函数作用域中
+- **特征**: 收集特征名、关联常量和关联函数
+
+值得注意的是，我们没有处理局部变量，这应当是类型检查部分的工作。
+
+同时，我们也没有处理数组类型，因为确定其长度需要常量求值。
+
+### 4. StructSymbol 的关联项管理
+
+#### 关联项类型
+StructSymbol 现在支持存储以下类型的关联项：
+
+1. **结构体字段**：原始的字段信息，通过 `VariableSymbol` 存储
+2. **关联常量**：来自 impl 块中的 const item，通过 `ConstSymbol` 存储
+3. **方法**：带 self 参数的函数，通过 `FuncSymbol` 存储在 `methods` 列表中
+4. **关联函数**：不带 self 参数的函数，通过 `FuncSymbol` 存储在 `functions` 列表中
+
+#### 关联项的添加和管理
+
+**固有实现（InherentImpl）中的关联项**：
+- 关联常量：通过 `addAssociatedConst()` 添加到 `associated_consts` 列表
+- 方法：通过 `addMethod()` 添加到 `methods` 列表（需要检查是否有 self 参数）
+- 关联函数：通过 `addAssociatedFunction()` 添加到 `functions` 列表
+
+**特征实现（TraitImpl）中的关联项**：
+- 同样通过上述方法添加到对应的列表中
+- 需要验证与特征定义的兼容性
+- 确保特征中定义的所有关联项都被实现
+
+#### 方法与关联函数的区分
+
+系统通过检查函数是否有 self 参数来区分方法和关联函数：
+- **方法**：带有 self 参数（`self`, `&self`, `&mut self`, `self: Type` 等）
+- **关联函数**：不带 self 参数，类似于静态方法
+
+这种设计使得 StructSymbol 能够完整地表示一个结构体的所有相关信息，包括其字段、方法和关联函数，为后续的类型检查和代码生成提供了完整的符号信息。
+
+## 下一步
+
+符号系统、符号收集器和结构体检查器已完成实现。下一步可以：
+
+1. 实现名称解析功能，利用已建立的符号表和作用域结构
+2. 添加类型检查功能
+3. 实现更复杂的语义分析功能
+4. 添加错误处理和诊断信息
+
+## 相关文档
+
+- [结构体检查器文档](struct_checker.md)：详细描述 StructChecker 的实现和功能
+
+## 文件结构
+
+```
+include/semantic/
+├── symbol.hpp         # 符号类型定义
+├── scope.hpp          # 作用域管理
+├── symbol_collector.hpp # 符号收集器接口
+└── struct_checker.hpp # 结构体检查器接口
+
+src/semantic/
+├── symbol.cpp         # 符号类型实现
+├── scope.cpp          # 作用域管理实现
+├── symbol_collector.cpp # 符号收集器实现
+└── struct_checker.cpp # 结构体检查器实现
+
+test/
+├── symbol_test.cpp           # 符号系统基础测试
+├── symbol_collector_test.cpp # 符号收集器测试
+└── symbol_collector_enhanced_test.cpp # 增强功能测试
+
+docs/semantic/
+├── symbol.md           # 符号系统完整文档
+└── struct_checker.md  # 结构体检查器文档

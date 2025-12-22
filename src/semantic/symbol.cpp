@@ -1,4 +1,5 @@
 #include "semantic/symbol.hpp"
+#include "semantic/const_value.hpp"
 
 // Symbol 基类实现
 Symbol::Symbol(const SymbolType& type) : type(type) {}
@@ -9,10 +10,25 @@ SymbolType Symbol::getType() {
 
 // ConstSymbol 类实现
 ConstSymbol::ConstSymbol(const std::string& identifier, const SymbolType& type)
-    : Symbol(type), identifier(identifier) {}
+    : Symbol(type), identifier(identifier), value(nullptr) {}
+
+ConstSymbol::ConstSymbol(const std::string& identifier, const SymbolType& type, std::shared_ptr<ConstValue> value)
+    : Symbol(type), identifier(identifier), value(value) {}
 
 std::string ConstSymbol::getIdentifier() const {
     return identifier;
+}
+
+std::shared_ptr<ConstValue> ConstSymbol::getValue() const {
+    return value;
+}
+
+void ConstSymbol::setValue(std::shared_ptr<ConstValue> value) {
+    this->value = value;
+}
+
+bool ConstSymbol::hasValue() const {
+    return value != nullptr;
 }
 
 // VariableSymbol 类实现
@@ -45,6 +61,41 @@ void StructSymbol::addField(std::shared_ptr<VariableSymbol> field) {
 
 const std::vector<std::shared_ptr<VariableSymbol>>& StructSymbol::getFields() const {
     return vars;
+}
+
+// 关联常量管理
+void StructSymbol::addAssociatedConst(std::shared_ptr<ConstSymbol> const_symbol) {
+    associated_consts.push_back(const_symbol);
+}
+
+const std::vector<std::shared_ptr<ConstSymbol>>& StructSymbol::getAssociatedConsts() const {
+    return associated_consts;
+}
+
+// 方法管理（带 self 参数）
+void StructSymbol::addMethod(std::shared_ptr<FuncSymbol> method) {
+    methods.push_back(method);
+}
+
+const std::vector<std::shared_ptr<FuncSymbol>>& StructSymbol::getMethods() const {
+    return methods;
+}
+
+// 关联函数管理（不带 self 参数）
+void StructSymbol::addAssociatedFunction(std::shared_ptr<FuncSymbol> function) {
+    functions.push_back(function);
+}
+
+const std::vector<std::shared_ptr<FuncSymbol>>& StructSymbol::getAssociatedFunctions() const {
+    return functions;
+}
+
+// 获取所有关联项（方法 + 关联函数）
+std::vector<std::shared_ptr<FuncSymbol>> StructSymbol::getAllAssociatedFunctions() const {
+    std::vector<std::shared_ptr<FuncSymbol>> all_funcs;
+    all_funcs.insert(all_funcs.end(), methods.begin(), methods.end());
+    all_funcs.insert(all_funcs.end(), functions.begin(), functions.end());
+    return all_funcs;
 }
 
 // EnumVar 类实现
@@ -116,4 +167,35 @@ const std::vector<std::shared_ptr<ConstSymbol>>& TraitSymbol::getConstSymbols() 
 
 const std::vector<std::shared_ptr<FuncSymbol>>& TraitSymbol::getAssociatedFunctions() const {
     return associated_funcs;
+}
+
+// ArraySymbol 类实现
+ArraySymbol::ArraySymbol(const std::string& identifier, const std::string& element_type)
+    : Symbol("array"), identifier(identifier), element_type(element_type), length(nullptr) {}
+
+ArraySymbol::ArraySymbol(const std::string& identifier, const std::string& element_type, std::shared_ptr<ConstValue> length)
+    : Symbol("array"), identifier(identifier), element_type(element_type), length(length) {}
+
+std::string ArraySymbol::getIdentifier() const {
+    return identifier;
+}
+
+std::string ArraySymbol::getElementType() const {
+    return element_type;
+}
+
+void ArraySymbol::setElementType(const std::string& element_type) {
+    this->element_type = element_type;
+}
+
+std::shared_ptr<ConstValue> ArraySymbol::getLength() const {
+    return length;
+}
+
+void ArraySymbol::setLength(std::shared_ptr<ConstValue> length) {
+    this->length = length;
+}
+
+bool ArraySymbol::hasLength() const {
+    return length != nullptr;
 }
