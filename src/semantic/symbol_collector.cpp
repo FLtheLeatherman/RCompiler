@@ -78,20 +78,47 @@ void SymbolCollector::visit(Function& node) {
         return_type_str = typeToString(node.function_return_type->type);
     }
     
-    auto func_symbol = std::make_shared<FuncSymbol>(node.identifier, return_type_str, node.is_const);
+    // 分析 self 参数类型
+    MethodType method_type = MethodType::NOT_METHOD;
+    if (node.function_parameters && node.function_parameters->self_param) {
+        if (auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(node.function_parameters->self_param->child)) {
+            // 处理简写形式的 self: self, &self, mut self, &mut self
+            if (shorthand_self->is_reference) {
+                if (shorthand_self->is_mutable) {
+                    method_type = MethodType::SELF_MUT_REF;  // &mut self
+                } else {
+                    method_type = MethodType::SELF_REF;       // &self
+                }
+            } else {
+                if (shorthand_self->is_mutable) {
+                    method_type = MethodType::SELF_MUT_VALUE; // mut self
+                } else {
+                    method_type = MethodType::SELF_VALUE;     // self
+                }
+            }
+        } else if (auto typed_self = std::dynamic_pointer_cast<TypedSelf>(node.function_parameters->self_param->child)) {
+            // 处理带类型注解的 self: self: Type, mut self: Type
+            if (typed_self->is_mutable) {
+                method_type = MethodType::SELF_MUT_VALUE; // mut self: Type
+            } else {
+                method_type = MethodType::SELF_VALUE;     // self: Type
+            }
+        }
+    }
+    
+    auto func_symbol = std::make_shared<FuncSymbol>(node.identifier, return_type_str, node.is_const, method_type);
     
     // 处理函数参数
+    // 保存当前作用域
+    auto prev_scope = current_scope;
+
+    // 创建函数作用域
+    auto func_scope = std::make_shared<Scope>(ScopeType::FUNCTION, current_scope);
+    current_scope = func_scope;
+
+    // 访问函数参数
     if (node.function_parameters) {
-        // 保存当前作用域
-        auto prev_scope = current_scope;
-        
-        // 创建函数作用域
-        auto func_scope = std::make_shared<Scope>(ScopeType::FUNCTION, current_scope);
-        current_scope = func_scope;
-        
-        // 访问函数参数
         node.function_parameters->accept(this);
-        
         // 将参数添加到函数符号中
         for (auto& param : node.function_parameters->function_param) {
             if (param) {
@@ -99,33 +126,28 @@ void SymbolCollector::visit(Function& node) {
                 if (var_symbol) {
                     func_symbol->addParameter(var_symbol);
                     // 将参数符号添加到函数作用域中
-                    current_scope->addConstSymbol(var_symbol->getIdentifier(), var_symbol);
+                    // current_scope->addConstSymbol(var_symbol->getIdentifier(), var_symbol);
+                    // todo: 如何将函数参数符号加入到函数作用域？
                 }
             }
         }
-        
-        // 将函数符号添加到父作用域
-        prev_scope->addFuncSymbol(node.identifier, func_symbol);
-        
-        // 访问函数体
-        if (node.block_expression) {
-            node.block_expression->accept(this);
-        }
-        
-        // 恢复作用域
-        current_scope = prev_scope;
-        
-        // 将函数作用域添加为父作用域的子作用域
-        prev_scope->addChild(func_scope);
-    } else {
-        // 没有参数的函数，直接添加到当前作用域
-        current_scope->addFuncSymbol(node.identifier, func_symbol);
-        
-        // 访问函数体
-        if (node.block_expression) {
-            node.block_expression->accept(this);
-        }
     }
+
+    // std::cout << "GOOD" << std::endl;
+
+    // 将函数符号添加到父作用域
+    prev_scope->addFuncSymbol(node.identifier, func_symbol);
+    
+    // 访问函数体
+    if (node.block_expression) {
+        node.block_expression->accept(this);
+    }
+    
+    // 恢复作用域
+    current_scope = prev_scope;
+    
+    // 将函数作用域添加为父作用域的子作用域
+    prev_scope->addChild(func_scope);
 }
 
 // 访问 Struct - 处理结构体符号
@@ -264,8 +286,41 @@ void SymbolCollector::visit(Trait& node) {
                     if (func->function_return_type && func->function_return_type->type) {
                         return_type_str = typeToString(func->function_return_type->type);
                     }
-                    auto func_symbol = std::make_shared<FuncSymbol>(func->identifier, return_type_str, func->is_const);
-                    trait_symbol->addAssociatedFunction(func_symbol);
+                    // 分析 self 参数类型
+                    MethodType method_type = MethodType::NOT_METHOD;
+                    if (func->function_parameters && func->function_parameters->self_param) {
+                        if (auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(func->function_parameters->self_param->child)) {
+                            // 处理简写形式的 self: self, &self, mut self, &mut self
+                            if (shorthand_self->is_reference) {
+                                if (shorthand_self->is_mutable) {
+                                    method_type = MethodType::SELF_MUT_REF;  // &mut self
+                                } else {
+                                    method_type = MethodType::SELF_REF;       // &self
+                                }
+                            } else {
+                                if (shorthand_self->is_mutable) {
+                                    method_type = MethodType::SELF_MUT_VALUE; // mut self
+                                } else {
+                                    method_type = MethodType::SELF_VALUE;     // self
+                                }
+                            }
+                        } else if (auto typed_self = std::dynamic_pointer_cast<TypedSelf>(func->function_parameters->self_param->child)) {
+                            // 处理带类型注解的 self: self: Type, mut self: Type
+                            if (typed_self->is_mutable) {
+                                method_type = MethodType::SELF_MUT_VALUE; // mut self: Type
+                            } else {
+                                method_type = MethodType::SELF_VALUE;     // self: Type
+                            }
+                        }
+                    }
+                    
+                    auto func_symbol = std::make_shared<FuncSymbol>(func->identifier, return_type_str, func->is_const, method_type);
+                    
+                    if (method_type != MethodType::NOT_METHOD) {
+                        trait_symbol->addMethod(func_symbol);
+                    } else {
+                        trait_symbol->addAssociatedFunction(func_symbol);
+                    }
                     current_scope->addFuncSymbol(func->identifier, func_symbol);
                 }
             }
@@ -298,6 +353,7 @@ void SymbolCollector::visit(InherentImpl& node) {
     
     // 创建实现作用域
     auto impl_scope = std::make_shared<Scope>(ScopeType::IMPL, current_scope);
+    impl_scope->setSelfType(typeToString(node.type));
     current_scope = impl_scope;
     
     // 处理关联项
@@ -323,6 +379,7 @@ void SymbolCollector::visit(TraitImpl& node) {
     
     // 创建实现作用域
     auto impl_scope = std::make_shared<Scope>(ScopeType::IMPL, current_scope);
+    impl_scope->setSelfType(typeToString(node.type));
     current_scope = impl_scope;
     
     // 处理关联项

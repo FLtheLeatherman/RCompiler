@@ -31,25 +31,37 @@
 
 #### StructSymbol
 - **功能**: 表示结构体符号，支持存储所有关联项（associated items）
-- **属性**: 标识符、类型、字段列表、关联常量列表、方法列表、关联函数列表
+- **属性**: 标识符、类型、字段映射、关联常量映射、方法映射、关联函数映射
 - **主要方法**:
   - `getIdentifier()`: 获取结构体名
-  - `addField()`: 添加字段
-  - `getFields()`: 获取所有字段
+  
+  - **字段管理**:
+    - `addField()`: 添加字段
+    - `hasField()`: 检查是否存在指定字段
+    - `getField()`: 获取指定字段
+    - `getFields()`: 获取所有字段
   
   - **关联常量管理**:
     - `addAssociatedConst()`: 添加关联常量（来自 impl 块中的 const item）
+    - `hasAssociatedConst()`: 检查是否存在指定关联常量
+    - `getAssociatedConst()`: 获取指定关联常量
     - `getAssociatedConsts()`: 获取所有关联常量
   
   - **方法管理**（带 self 参数）:
     - `addMethod()`: 添加方法（带 self 参数的函数）
+    - `hasMethod()`: 检查是否存在指定方法
+    - `getMethod()`: 获取指定方法
     - `getMethods()`: 获取所有方法
   
   - **关联函数管理**（不带 self 参数）:
     - `addAssociatedFunction()`: 添加关联函数（不带 self 参数的函数）
+    - `hasAssociatedFunction()`: 检查是否存在指定关联函数
+    - `getAssociatedFunction()`: 获取指定关联函数
     - `getAssociatedFunctions()`: 获取所有关联函数
   
   - `getAllAssociatedFunctions()`: 获取所有关联项（方法 + 关联函数）
+
+**存储优化**: 所有关联项现在使用 `std::unordered_map<std::string, std::shared_ptr<T>>` 存储，以名称为键，提供 O(1) 的查找性能。
 
 #### EnumVar & EnumSymbol
 - **功能**: 表示枚举变体和枚举符号
@@ -59,25 +71,67 @@
   - `addVariant()`: 添加变体
   - `getVariants()`: 获取所有变体
 
+#### 方法类型枚举 (MethodType)
+- **功能**: 定义不同的方法接收器类型
+- **枚举值**:
+  - `NOT_METHOD`: 不是方法（普通函数）
+  - `SELF_VALUE`: `self` (按值获取)
+  - `SELF_REF`: `&self` (不可变引用)
+  - `SELF_MUT_REF`: `&mut self` (可变引用)
+  - `SELF_MUT_VALUE`: `mut self` (按值获取，但可变)
+
 #### FuncSymbol
-- **功能**: 表示函数符号
-- **属性**: 标识符、返回类型、是否为常量函数、参数列表
+- **功能**: 表示函数符号，支持详细的方法类型区分
+- **属性**: 标识符、返回类型、是否为常量函数、方法类型、参数列表
 - **主要方法**:
   - `getIdentifier()`: 获取函数名
   - `isConst()`: 检查是否为常量函数
+  - `isMethod()`: 检查是否为方法（带 self 参数）
+  - `getMethodType()`: 获取具体的方法类型
+  - `getMethodTypeString()`: 获取方法类型的字符串表示
   - `addParameter()`: 添加参数
   - `getParameters()`: 获取所有参数
   - `getReturnType()`: 获取返回类型
 
+**方法类型识别**: 系统能够精确识别以下 self 参数形式：
+- `self`: 按值获取所有权
+- `&self`: 不可变引用
+- `&mut self`: 可变引用
+- `mut self`: 按值获取但可变
+- `self: Type`: 带类型注解的按值获取
+- `mut self: Type`: 带类型注解的按值可变获取
+
+**方法判断**: 通过分析函数参数中的 self 参数类型来确定具体的方法类型，支持简写形式和类型注解形式。
+
 #### TraitSymbol
 - **功能**: 表示特征符号
-- **属性**: 标识符、关联常量列表、关联函数列表
+- **属性**: 标识符、关联常量映射、方法映射、关联函数映射
 - **主要方法**:
   - `getIdentifier()`: 获取特征名
-  - `addConstSymbol()`: 添加关联常量
-  - `addAssociatedFunction()`: 添加关联函数
-  - `getConstSymbols()`: 获取所有关联常量
-  - `getAssociatedFunctions()`: 获取所有关联函数
+  
+  - **关联常量管理**:
+    - `addConstSymbol()`: 添加关联常量
+    - `hasConstSymbol()`: 检查是否存在指定关联常量
+    - `getConstSymbol()`: 获取指定关联常量
+    - `getConstSymbols()`: 获取所有关联常量
+  
+  - **方法管理**（带 self 参数）:
+    - `addMethod()`: 添加方法（带 self 参数的函数）
+    - `hasMethod()`: 检查是否存在指定方法
+    - `getMethod()`: 获取指定方法
+    - `getMethods()`: 获取所有方法
+  
+  - **关联函数管理**（不带 self 参数）:
+    - `addAssociatedFunction()`: 添加关联函数（不带 self 参数的函数）
+    - `hasAssociatedFunction()`: 检查是否存在指定关联函数
+    - `getAssociatedFunction()`: 获取指定关联函数
+    - `getAssociatedFunctions()`: 获取所有关联函数
+  
+  - `getAllAssociatedFunctions()`: 获取所有关联项（方法 + 关联函数）
+
+**存储优化**: 所有关联项现在使用 `std::unordered_map<std::string, std::shared_ptr<T>>` 存储，以名称为键，提供 O(1) 的查找性能。
+
+**方法与关联函数分离**: TraitSymbol 现在将方法和关联函数分开存储，类似于 StructSymbol，通过检查函数是否有 self 参数来进行区分。
 
 ### 2. 常量值系统 (ConstValue System)
 
@@ -196,115 +250,6 @@
 ### 3. 扩展性
 - 基于继承的设计，易于添加新的符号类型
 - 模块化设计，便于维护和扩展
-
-## 测试
-
-### 基础符号系统测试
-测试文件位于 [`test/symbol_test.cpp`](test/symbol_test.cpp:1)，包含：
-
-1. **符号类型测试**: 验证所有符号类型的构造和基本功能
-2. **作用域管理测试**: 验证作用域层次结构和符号查找功能
-
-### SymbolCollector 测试
-测试文件位于 [`test/symbol_collector_test.cpp`](test/symbol_collector_test.cpp:1)，包含：
-
-1. **AST 构建**: 创建包含常量、结构体、枚举、函数的测试 AST
-2. **符号收集验证**: 验证 SymbolCollector 正确收集所有类型的符号
-3. **作用域层次验证**: 验证作用域层次结构的正确建立
-4. **符号查找测试**: 验证符号查找功能的正确性
-
-#### 测试覆盖的符号类型
-- ✅ 常量符号：`MAX: i32`
-- ✅ 结构体符号：`Point { x: i32, y: i32 }`
-- ✅ 枚举符号：`Color { Red, Green, Blue }`
-- ✅ 函数符号：`add(a: i32, b: i32) -> i32`
-- ✅ 局部变量符号：`result: i32`
-
-#### 测试覆盖的作用域类型
-- ✅ 全局作用域 (GLOBAL)
-- ✅ 函数作用域 (FUNCTION)
-- ✅ 块作用域 (BLOCK)
-
-### 运行测试
-
-#### 基础符号系统测试
-```bash
-cd build
-g++ -std=c++17 -I../include ../test/symbol_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp -o symbol_test
-./symbol_test
-```
-
-#### SymbolCollector 测试
-```bash
-cd build
-g++ -std=c++17 -I../include ../test/symbol_collector_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp ../src/semantic/symbol_collector.cpp ../src/semantic/const_value.cpp -o symbol_collector_test
-./symbol_collector_test
-```
-
-#### 增强功能测试
-```bash
-cd build
-g++ -std=c++17 -I../include ../test/symbol_collector_enhanced_test.cpp ../src/semantic/symbol.cpp ../src/semantic/scope.cpp ../src/semantic/symbol_collector.cpp ../src/semantic/const_value.cpp ../src/parser/astnode.cpp -o symbol_collector_enhanced_test
-./symbol_collector_enhanced_test
-```
-
-#### 测试输出示例
-```
-=== 测试 SymbolCollector ===
-Visiting Crate, creating global scope
-Visiting Constant: MAX
-Visiting Struct: Point
-Visiting Enum: Color
-Visiting Function: add
-Visiting BlockExpression
-Visiting LetStatement
-
-=== 符号收集结果 ===
-Scope Type: GLOBAL
-Constants:
-  MAX: i32
-Structs:
-  Point: Point
-Enums:
-  Color: Color
-Functions:
-  add: function -> i32
-Child scope:
-  Scope Type: FUNCTION
-  Constants:
-    b: i32
-    a: i32
-  Child scope:
-    Scope Type: BLOCK
-    Constants:
-      result: i32
-
-=== 符号统计 ===
-总符号数量: 7
-
-=== 符号查找测试 ===
-查找 MAX: 找到
-  类型: i32
-查找 Point: 找到
-  类型: Point
-  字段数量: 2
-查找 Color: 找到
-  类型: Color
-  变体数量: 3
-查找 add: 找到
-  返回类型: i32
-  参数数量: 2
-
-=== 测试完成 ===
-```
-
-## 编译验证
-
-整个项目已通过编译验证：
-```bash
-cd build
-make
-```
 
 ### 3. 符号收集器 (SymbolCollector)
 
@@ -431,11 +376,6 @@ src/semantic/
 ├── scope.cpp          # 作用域管理实现
 ├── symbol_collector.cpp # 符号收集器实现
 └── struct_checker.cpp # 结构体检查器实现
-
-test/
-├── symbol_test.cpp           # 符号系统基础测试
-├── symbol_collector_test.cpp # 符号收集器测试
-└── symbol_collector_enhanced_test.cpp # 增强功能测试
 
 docs/semantic/
 ├── symbol.md           # 符号系统完整文档

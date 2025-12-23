@@ -18,9 +18,11 @@ enum class ScopeType {
 class Scope : public std::enable_shared_from_this<Scope> {
 private:
     ScopeType type;
+    size_t pos; // 目前应该访问哪个 children?
+    std::string self_type; // for impl scope
     std::shared_ptr<Scope> parent_scope;
     std::vector<std::shared_ptr<Scope>> children;
-    std::unordered_map<std::string, std::shared_ptr<Symbol>> const_symbols;
+    std::unordered_map<std::string, std::shared_ptr<ConstSymbol>> const_symbols;
     std::unordered_map<std::string, std::shared_ptr<StructSymbol>> struct_symbols;
     std::unordered_map<std::string, std::shared_ptr<EnumSymbol>> enum_symbols;
     std::unordered_map<std::string, std::shared_ptr<FuncSymbol>> func_symbols;
@@ -34,16 +36,21 @@ public:
     ScopeType getType() const;
     std::shared_ptr<Scope> getParent() const;
     const std::vector<std::shared_ptr<Scope>>& getChildren() const;
+    std::shared_ptr<Scope> getChild() const;
+    void nextChild();
+    void resetChild();
+    void setSelfType(std::string);
+    std::string getSelfType();
     
     // 作用域层次结构管理
     void addChild(std::shared_ptr<Scope> child);
     void setParent(std::shared_ptr<Scope> parent);
     
     // 常量符号管理
-    void addConstSymbol(const std::string& name, std::shared_ptr<Symbol> symbol);
-    std::shared_ptr<Symbol> getConstSymbol(const std::string& name) const;
+    void addConstSymbol(const std::string& name, std::shared_ptr<ConstSymbol> symbol);
+    std::shared_ptr<ConstSymbol> getConstSymbol(const std::string& name) const;
     bool hasConstSymbol(const std::string& name) const;
-    const std::unordered_map<std::string, std::shared_ptr<Symbol>>& getConstSymbols() const;
+    const std::unordered_map<std::string, std::shared_ptr<ConstSymbol>>& getConstSymbols() const;
     
     // 结构体符号管理
     void addStructSymbol(const std::string& name, std::shared_ptr<StructSymbol> symbol);
@@ -90,5 +97,7 @@ public:
     
     // 调试和输出
     void printScope(int indent = 0) const;
+    size_t getFuncSymbolCount() const;
     size_t getTotalSymbolCount() const;
+    void clearPos();
 };

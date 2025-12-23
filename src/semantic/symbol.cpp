@@ -55,46 +55,108 @@ std::string StructSymbol::getIdentifier() const {
     return identifier;
 }
 
+// 字段管理
 void StructSymbol::addField(std::shared_ptr<VariableSymbol> field) {
-    vars.push_back(field);
+    vars[field->getIdentifier()] = field;
 }
 
-const std::vector<std::shared_ptr<VariableSymbol>>& StructSymbol::getFields() const {
-    return vars;
+bool StructSymbol::hasField(const std::string& name) const {
+    return vars.find(name) != vars.end();
+}
+
+std::shared_ptr<VariableSymbol> StructSymbol::getField(const std::string& name) const {
+    auto it = vars.find(name);
+    return (it != vars.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<VariableSymbol>> StructSymbol::getFields() const {
+    std::vector<std::shared_ptr<VariableSymbol>> result;
+    result.reserve(vars.size());
+    for (const auto& pair : vars) {
+        result.push_back(pair.second);
+    }
+    return result;
 }
 
 // 关联常量管理
 void StructSymbol::addAssociatedConst(std::shared_ptr<ConstSymbol> const_symbol) {
-    associated_consts.push_back(const_symbol);
+    associated_consts[const_symbol->getIdentifier()] = const_symbol;
 }
 
-const std::vector<std::shared_ptr<ConstSymbol>>& StructSymbol::getAssociatedConsts() const {
-    return associated_consts;
+bool StructSymbol::hasAssociatedConst(const std::string& name) const {
+    return associated_consts.find(name) != associated_consts.end();
+}
+
+std::shared_ptr<ConstSymbol> StructSymbol::getAssociatedConst(const std::string& name) const {
+    auto it = associated_consts.find(name);
+    return (it != associated_consts.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<ConstSymbol>> StructSymbol::getAssociatedConsts() const {
+    std::vector<std::shared_ptr<ConstSymbol>> result;
+    result.reserve(associated_consts.size());
+    for (const auto& pair : associated_consts) {
+        result.push_back(pair.second);
+    }
+    return result;
 }
 
 // 方法管理（带 self 参数）
 void StructSymbol::addMethod(std::shared_ptr<FuncSymbol> method) {
-    methods.push_back(method);
+    methods[method->getIdentifier()] = method;
 }
 
-const std::vector<std::shared_ptr<FuncSymbol>>& StructSymbol::getMethods() const {
-    return methods;
+bool StructSymbol::hasMethod(const std::string& name) const {
+    return methods.find(name) != methods.end();
+}
+
+std::shared_ptr<FuncSymbol> StructSymbol::getMethod(const std::string& name) const {
+    auto it = methods.find(name);
+    return (it != methods.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<FuncSymbol>> StructSymbol::getMethods() const {
+    std::vector<std::shared_ptr<FuncSymbol>> result;
+    result.reserve(methods.size());
+    for (const auto& pair : methods) {
+        result.push_back(pair.second);
+    }
+    return result;
 }
 
 // 关联函数管理（不带 self 参数）
 void StructSymbol::addAssociatedFunction(std::shared_ptr<FuncSymbol> function) {
-    functions.push_back(function);
+    functions[function->getIdentifier()] = function;
 }
 
-const std::vector<std::shared_ptr<FuncSymbol>>& StructSymbol::getAssociatedFunctions() const {
-    return functions;
+bool StructSymbol::hasAssociatedFunction(const std::string& name) const {
+    return functions.find(name) != functions.end();
+}
+
+std::shared_ptr<FuncSymbol> StructSymbol::getAssociatedFunction(const std::string& name) const {
+    auto it = functions.find(name);
+    return (it != functions.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<FuncSymbol>> StructSymbol::getAssociatedFunctions() const {
+    std::vector<std::shared_ptr<FuncSymbol>> result;
+    result.reserve(functions.size());
+    for (const auto& pair : functions) {
+        result.push_back(pair.second);
+    }
+    return result;
 }
 
 // 获取所有关联项（方法 + 关联函数）
 std::vector<std::shared_ptr<FuncSymbol>> StructSymbol::getAllAssociatedFunctions() const {
     std::vector<std::shared_ptr<FuncSymbol>> all_funcs;
-    all_funcs.insert(all_funcs.end(), methods.begin(), methods.end());
-    all_funcs.insert(all_funcs.end(), functions.begin(), functions.end());
+    all_funcs.reserve(methods.size() + functions.size());
+    for (const auto& pair : methods) {
+        all_funcs.push_back(pair.second);
+    }
+    for (const auto& pair : functions) {
+        all_funcs.push_back(pair.second);
+    }
     return all_funcs;
 }
 
@@ -122,8 +184,8 @@ const std::vector<std::shared_ptr<EnumVar>>& EnumSymbol::getVariants() const {
 }
 
 // FuncSymbol 类实现
-FuncSymbol::FuncSymbol(const std::string& identifier, const SymbolType& return_type, bool is_const)
-    : Symbol("function"), identifier(identifier), return_type(return_type), is_const(is_const) {}
+FuncSymbol::FuncSymbol(const std::string& identifier, const SymbolType& return_type, bool is_const, MethodType method_type)
+    : Symbol("function"), identifier(identifier), return_type(return_type), is_const(is_const), method_type(method_type) {}
 
 std::string FuncSymbol::getIdentifier() const {
     return identifier;
@@ -131,6 +193,31 @@ std::string FuncSymbol::getIdentifier() const {
 
 bool FuncSymbol::isConst() const {
     return is_const;
+}
+
+bool FuncSymbol::isMethod() const {
+    return method_type != MethodType::NOT_METHOD;
+}
+
+MethodType FuncSymbol::getMethodType() const {
+    return method_type;
+}
+
+std::string FuncSymbol::getMethodTypeString() const {
+    switch (method_type) {
+        case MethodType::NOT_METHOD:
+            return "function";
+        case MethodType::SELF_VALUE:
+            return "self";
+        case MethodType::SELF_REF:
+            return "&self";
+        case MethodType::SELF_MUT_REF:
+            return "&mut self";
+        case MethodType::SELF_MUT_VALUE:
+            return "mut self";
+        default:
+            return "unknown";
+    }
 }
 
 void FuncSymbol::addParameter(std::shared_ptr<VariableSymbol> param) {
@@ -153,20 +240,86 @@ std::string TraitSymbol::getIdentifier() const {
     return identifier;
 }
 
+// 关联常量管理
 void TraitSymbol::addConstSymbol(std::shared_ptr<ConstSymbol> const_symbol) {
-    const_symbols.push_back(const_symbol);
+    const_symbols[const_symbol->getIdentifier()] = const_symbol;
 }
 
-void TraitSymbol::addAssociatedFunction(std::shared_ptr<FuncSymbol> func) {
-    associated_funcs.push_back(func);
+bool TraitSymbol::hasConstSymbol(const std::string& name) const {
+    return const_symbols.find(name) != const_symbols.end();
 }
 
-const std::vector<std::shared_ptr<ConstSymbol>>& TraitSymbol::getConstSymbols() const {
-    return const_symbols;
+std::shared_ptr<ConstSymbol> TraitSymbol::getConstSymbol(const std::string& name) const {
+    auto it = const_symbols.find(name);
+    return (it != const_symbols.end()) ? it->second : nullptr;
 }
 
-const std::vector<std::shared_ptr<FuncSymbol>>& TraitSymbol::getAssociatedFunctions() const {
-    return associated_funcs;
+std::vector<std::shared_ptr<ConstSymbol>> TraitSymbol::getConstSymbols() const {
+    std::vector<std::shared_ptr<ConstSymbol>> result;
+    result.reserve(const_symbols.size());
+    for (const auto& pair : const_symbols) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+// 方法管理（带 self 参数）
+void TraitSymbol::addMethod(std::shared_ptr<FuncSymbol> method) {
+    methods[method->getIdentifier()] = method;
+}
+
+bool TraitSymbol::hasMethod(const std::string& name) const {
+    return methods.find(name) != methods.end();
+}
+
+std::shared_ptr<FuncSymbol> TraitSymbol::getMethod(const std::string& name) const {
+    auto it = methods.find(name);
+    return (it != methods.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<FuncSymbol>> TraitSymbol::getMethods() const {
+    std::vector<std::shared_ptr<FuncSymbol>> result;
+    result.reserve(methods.size());
+    for (const auto& pair : methods) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+// 关联函数管理（不带 self 参数）
+void TraitSymbol::addAssociatedFunction(std::shared_ptr<FuncSymbol> function) {
+    functions[function->getIdentifier()] = function;
+}
+
+bool TraitSymbol::hasAssociatedFunction(const std::string& name) const {
+    return functions.find(name) != functions.end();
+}
+
+std::shared_ptr<FuncSymbol> TraitSymbol::getAssociatedFunction(const std::string& name) const {
+    auto it = functions.find(name);
+    return (it != functions.end()) ? it->second : nullptr;
+}
+
+std::vector<std::shared_ptr<FuncSymbol>> TraitSymbol::getAssociatedFunctions() const {
+    std::vector<std::shared_ptr<FuncSymbol>> result;
+    result.reserve(functions.size());
+    for (const auto& pair : functions) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+// 获取所有关联项（方法 + 关联函数）
+std::vector<std::shared_ptr<FuncSymbol>> TraitSymbol::getAllAssociatedFunctions() const {
+    std::vector<std::shared_ptr<FuncSymbol>> all_funcs;
+    all_funcs.reserve(methods.size() + functions.size());
+    for (const auto& pair : methods) {
+        all_funcs.push_back(pair.second);
+    }
+    for (const auto& pair : functions) {
+        all_funcs.push_back(pair.second);
+    }
+    return all_funcs;
 }
 
 // ArraySymbol 类实现

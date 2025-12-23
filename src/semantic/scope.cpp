@@ -3,10 +3,13 @@
 #include "semantic/const_value.hpp"
 #include <iostream>
 #include <iomanip>
+#include <assert.h>
 
 // 构造函数
 Scope::Scope(ScopeType type, std::shared_ptr<Scope> parent)
-    : type(type), parent_scope(parent) {}
+    : type(type), parent_scope(parent) {
+    pos = 0;
+}
 
 // 基本访问器
 ScopeType Scope::getType() const {
@@ -19,6 +22,25 @@ std::shared_ptr<Scope> Scope::getParent() const {
 
 const std::vector<std::shared_ptr<Scope>>& Scope::getChildren() const {
     return children;
+}
+
+std::shared_ptr<Scope> Scope::getChild() const {
+    // std::cout << pos << ' ' << children.size() << std::endl;
+    assert(pos < children.size());
+    return children[pos];
+}
+void Scope::nextChild() {
+    pos++;
+}
+void Scope::resetChild() {
+    pos = 0;
+}
+
+void Scope::setSelfType(std::string self_type) {
+    this->self_type = self_type;
+}
+std::string Scope::getSelfType() {
+    return this->self_type;
 }
 
 // 作用域层次结构管理
@@ -34,11 +56,11 @@ void Scope::setParent(std::shared_ptr<Scope> parent) {
 }
 
 // 常量符号管理
-void Scope::addConstSymbol(const std::string& name, std::shared_ptr<Symbol> symbol) {
+void Scope::addConstSymbol(const std::string& name, std::shared_ptr<ConstSymbol> symbol) {
     const_symbols[name] = symbol;
 }
 
-std::shared_ptr<Symbol> Scope::getConstSymbol(const std::string& name) const {
+std::shared_ptr<ConstSymbol> Scope::getConstSymbol(const std::string& name) const {
     auto it = const_symbols.find(name);
     if (it != const_symbols.end()) {
         return it->second;
@@ -50,7 +72,7 @@ bool Scope::hasConstSymbol(const std::string& name) const {
     return const_symbols.find(name) != const_symbols.end();
 }
 
-const std::unordered_map<std::string, std::shared_ptr<Symbol>>& Scope::getConstSymbols() const {
+const std::unordered_map<std::string, std::shared_ptr<ConstSymbol>>& Scope::getConstSymbols() const {
     return const_symbols;
 }
 
@@ -241,10 +263,12 @@ void Scope::printScope(int indent) const {
         case ScopeType::BLOCK: std::cout << "BLOCK"; break;
         case ScopeType::FUNCTION: std::cout << "FUNCTION"; break;
         case ScopeType::TRAIT: std::cout << "TRAIT"; break;
-        case ScopeType::IMPL: std::cout << "IMPL"; break;
+        case ScopeType::IMPL: std::cout << "IMPL " << self_type; break;
         case ScopeType::LOOP: std::cout << "LOOP"; break;
     }
     std::cout << std::endl;
+
+    // 以下符号打印可能需要更详细。
     
     // 打印常量符号
     if (!const_symbols.empty()) {
@@ -259,6 +283,10 @@ void Scope::printScope(int indent) const {
         std::cout << indent_str << "Structs:" << std::endl;
         for (const auto& [name, symbol] : struct_symbols) {
             std::cout << indent_str << "  " << name << ": " << symbol->getType() << std::endl;
+            auto struct_fields = symbol->getFields();
+            for (const auto& symbol_in_struct: struct_fields) {
+                std::cout << indent_str << "    " << symbol_in_struct->getIdentifier() << ": " << symbol_in_struct->getType() << std::endl;
+            }
         }
     }
     
@@ -294,6 +322,11 @@ void Scope::printScope(int indent) const {
     }
 }
 
+size_t Scope::getFuncSymbolCount() const {
+    size_t count = func_symbols.size();
+    return count;
+}
+
 size_t Scope::getTotalSymbolCount() const {
     size_t count = const_symbols.size() + struct_symbols.size() +
                   enum_symbols.size() + func_symbols.size() + trait_symbols.size();
@@ -303,4 +336,11 @@ size_t Scope::getTotalSymbolCount() const {
     }
     
     return count;
+}
+
+void Scope::clearPos() {
+    pos = 0;
+    for (const auto& child : children) {
+        child->clearPos();
+    }
 }

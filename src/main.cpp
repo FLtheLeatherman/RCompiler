@@ -33,5 +33,7 @@ int main() {
     symbol_collector.visit(*root);
     auto root_scope = symbol_collector.getRootScope();
     root_scope->printScope();
-    
+    StructChecker struct_checker(root_scope);
+    struct_checker.visit(*root);
+    root_scope->clearPos();
 }
