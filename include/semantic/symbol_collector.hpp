@@ -6,6 +6,7 @@
 #include "scope.hpp"
 #include "symbol.hpp"
 #include "const_value.hpp"
+#include "const_evaluator.hpp"
 #include <memory>
 class SymbolCollector : public ASTVisitor {
 private:

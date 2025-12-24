@@ -125,9 +125,8 @@ void SymbolCollector::visit(Function& node) {
                 auto var_symbol = createVariableSymbolFromPattern(param->pattern_no_top_alt, param->type);
                 if (var_symbol) {
                     func_symbol->addParameter(var_symbol);
-                    // 将参数符号添加到函数作用域中
+                    // 不将参数符号添加到函数作用域中，这是第四步干的事情。
                     // current_scope->addConstSymbol(var_symbol->getIdentifier(), var_symbol);
-                    // todo: 如何将函数参数符号加入到函数作用域？
                 }
             }
         }
@@ -238,8 +237,8 @@ void SymbolCollector::visit(ConstantItem& node) {
     // 尝试从表达式创建 ConstValue
     std::shared_ptr<ConstValue> const_value = nullptr;
     if (node.expression) {
-        const_value = createConstValueFromExpression(node.expression);
-        std::cout << "Created ConstValue for " << node.identifier << ": " << (const_value ? const_value->toString() : "null") << std::endl;
+        const_value = std::make_shared<ConstValue>(node.expression);
+        std::cout << "Created ConstValue for " << node.identifier << std::endl;
     }
     
     auto const_symbol = std::make_shared<ConstSymbol>(node.identifier, type_str, const_value);

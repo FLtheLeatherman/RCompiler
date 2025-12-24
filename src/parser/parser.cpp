@@ -422,8 +422,8 @@ std::shared_ptr<Crate> Parser::parseCrate() {
 }
 
 std::shared_ptr<Item> Parser::parseItem() {
-    std::cerr << "Item: " << std::endl;
-    std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
+    // std::cerr << "Item: " << std::endl;
+    // std::cerr << pos << ' ' << tokenToString(peek()) << std::endl;
     // std::cerr << (int)peek() << std::endl;
     if (peek() == Token::kEOF) {
         return nullptr;

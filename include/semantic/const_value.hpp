@@ -148,6 +148,3 @@ public:
     
     bool isEnum() const override { return true; }
 };
-
-// 辅助函数
-std::shared_ptr<ConstValue> createConstValueFromExpression(std::shared_ptr<ASTNode> expression);

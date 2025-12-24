@@ -17,6 +17,7 @@ add_executable(code
         src/semantic/symbol.cpp
         src/semantic/scope.cpp
         src/semantic/symbol_collector.cpp
+        src/semantic/const_evaluator.cpp
         src/semantic/struct_checker.cpp
         src/main.cpp
 )

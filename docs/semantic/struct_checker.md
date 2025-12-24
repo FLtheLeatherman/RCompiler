@@ -171,7 +171,7 @@ current_scope->nextChild();
 - 使用标准的作用域切换模式确保正确的符号查找
 
 ### 3. 特殊处理
-- **Let Statement**: 检查变量声明中的类型是否存在
+- **Let Statement**: **不**检查变量声明中的类型是否存在
 - **Function**: 检查参数类型和返回值类型
 - **Struct/Enum**: 检查符号是否存在
 - **Impl**: 调用专门的辅助函数处理实现块集成
