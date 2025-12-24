@@ -8,50 +8,9 @@ SymbolCollector::SymbolCollector() {
     current_scope = root_scope;
 }
 
-// 辅助方法：将 Type 转换为字符串
-std::string SymbolCollector::typeToString(std::shared_ptr<Type> type) {
-    if (!type || !type->child) {
-        return "unknown";
-    }
-    
-    // 处理不同的类型
-    if (auto path_ident = std::dynamic_pointer_cast<PathIdentSegment>(type->child)) {
-        return path_ident->identifier;
-    } else if (auto ref_type = std::dynamic_pointer_cast<ReferenceType>(type->child)) {
-        std::string base_type = typeToString(ref_type->type);
-        return (ref_type->is_mutable ? "&mut " : "&") + base_type;
-    } else if (auto array_type = std::dynamic_pointer_cast<ArrayType>(type->child)) {
-        std::string base_type = typeToString(array_type->type);
-        return "[" + base_type + "]";
-    } else if (auto unit_type = std::dynamic_pointer_cast<UnitType>(type->child)) {
-        return "()";
-    }
-    
-    return "unknown";
-}
-
-// 辅助方法：从模式创建变量符号
-std::shared_ptr<VariableSymbol> SymbolCollector::createVariableSymbolFromPattern(
-    std::shared_ptr<PatternNoTopAlt> pattern, std::shared_ptr<Type> type) {
-    
-    if (!pattern || !pattern->child) {
-        return nullptr;
-    }
-    
-    if (auto ident_pattern = std::dynamic_pointer_cast<IdentifierPattern>(pattern->child)) {
-        std::string type_str = typeToString(type);
-        return std::make_shared<VariableSymbol>(ident_pattern->identifier, type_str,
-                                               ident_pattern->is_ref, ident_pattern->is_mutable);
-    } else if (auto ref_pattern = std::dynamic_pointer_cast<ReferencePattern>(pattern->child)) {
-        return createVariableSymbolFromPattern(ref_pattern->pattern, type);
-    }
-    
-    return nullptr;
-}
-
 // 访问 Crate - 创建全局作用域并遍历所有 items
 void SymbolCollector::visit(Crate& node) {
-    std::cout << "Visiting Crate, creating global scope" << std::endl;
+    // std::cout << "Visiting Crate, creating global scope" << std::endl;
     
     // 遍历所有顶层 items
     for (auto& item : node.items) {
@@ -70,7 +29,7 @@ void SymbolCollector::visit(Item& node) {
 
 // 访问 Function - 处理函数符号和作用域
 void SymbolCollector::visit(Function& node) {
-    std::cout << "Visiting Function: " << node.identifier << std::endl;
+    // std::cout << "Visiting Function: " << node.identifier << std::endl;
     
     // 创建函数符号
     std::string return_type_str = "()";  // 默认返回类型
@@ -125,14 +84,10 @@ void SymbolCollector::visit(Function& node) {
                 auto var_symbol = createVariableSymbolFromPattern(param->pattern_no_top_alt, param->type);
                 if (var_symbol) {
                     func_symbol->addParameter(var_symbol);
-                    // 不将参数符号添加到函数作用域中，这是第四步干的事情。
-                    // current_scope->addConstSymbol(var_symbol->getIdentifier(), var_symbol);
                 }
             }
         }
     }
-
-    // std::cout << "GOOD" << std::endl;
 
     // 将函数符号添加到父作用域
     prev_scope->addFuncSymbol(node.identifier, func_symbol);
@@ -158,7 +113,7 @@ void SymbolCollector::visit(Struct& node) {
 
 // 访问 StructStruct
 void SymbolCollector::visit(StructStruct& node) {
-    std::cout << "Visiting Struct: " << node.identifier << std::endl;
+    // std::cout << "Visiting Struct: " << node.identifier << std::endl;
     
     // 创建结构体符号
     auto struct_symbol = std::make_shared<StructSymbol>(node.identifier, "Struct");
@@ -193,7 +148,7 @@ void SymbolCollector::visit(StructField& node) {
 
 // 访问 Enumeration - 处理枚举符号
 void SymbolCollector::visit(Enumeration& node) {
-    std::cout << "Visiting Enum: " << node.identifier << std::endl;
+    // std::cout << "Visiting Enum: " << node.identifier << std::endl;
     
     // 创建枚举符号
     auto enum_symbol = std::make_shared<EnumSymbol>(node.identifier, node.identifier);
@@ -227,7 +182,7 @@ void SymbolCollector::visit(EnumVariant& node) {
 
 // 访问 ConstantItem - 处理常量符号
 void SymbolCollector::visit(ConstantItem& node) {
-    std::cout << "Visiting Constant: " << node.identifier << std::endl;
+    // std::cout << "Visiting Constant: " << node.identifier << std::endl;
     
     std::string type_str = "unknown";
     if (node.type) {
@@ -236,11 +191,7 @@ void SymbolCollector::visit(ConstantItem& node) {
     
     // 尝试从表达式创建 ConstValue
     std::shared_ptr<ConstValue> const_value = nullptr;
-    if (node.expression) {
-        const_value = std::make_shared<ConstValue>(node.expression);
-        std::cout << "Created ConstValue for " << node.identifier << std::endl;
-    }
-    
+    // std::cout << "Created ConstValue for " << node.identifier << std::endl;
     auto const_symbol = std::make_shared<ConstSymbol>(node.identifier, type_str, const_value);
     
     // 将常量符号添加到当前作用域
@@ -253,7 +204,7 @@ void SymbolCollector::visit(ConstantItem& node) {
 
 // 访问 Trait - 处理特征符号和作用域
 void SymbolCollector::visit(Trait& node) {
-    std::cout << "Visiting Trait: " << node.identifier << std::endl;
+    // std::cout << "Visiting Trait: " << node.identifier << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;
@@ -263,7 +214,7 @@ void SymbolCollector::visit(Trait& node) {
     current_scope = trait_scope;
     
     // 创建特征符号
-    auto trait_symbol = std::make_shared<TraitSymbol>(node.identifier);
+    // auto trait_symbol = std::make_shared<TraitSymbol>(node.identifier);
     
     // 处理关联项
     for (auto& item : node.associated_item) {
@@ -271,63 +222,76 @@ void SymbolCollector::visit(Trait& node) {
             item->accept(this);
             
             // 将关联项添加到特征符号中
-            if (item->child) {
-                if (auto const_item = std::dynamic_pointer_cast<ConstantItem>(item->child)) {
-                    std::string type_str = "unknown";
-                    if (const_item->type) {
-                        type_str = typeToString(const_item->type);
-                    }
-                    auto const_symbol = std::make_shared<ConstSymbol>(const_item->identifier, type_str);
-                    trait_symbol->addConstSymbol(const_symbol);
-                    current_scope->addConstSymbol(const_item->identifier, const_symbol);
-                } else if (auto func = std::dynamic_pointer_cast<Function>(item->child)) {
-                    std::string return_type_str = "()";
-                    if (func->function_return_type && func->function_return_type->type) {
-                        return_type_str = typeToString(func->function_return_type->type);
-                    }
-                    // 分析 self 参数类型
-                    MethodType method_type = MethodType::NOT_METHOD;
-                    if (func->function_parameters && func->function_parameters->self_param) {
-                        if (auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(func->function_parameters->self_param->child)) {
-                            // 处理简写形式的 self: self, &self, mut self, &mut self
-                            if (shorthand_self->is_reference) {
-                                if (shorthand_self->is_mutable) {
-                                    method_type = MethodType::SELF_MUT_REF;  // &mut self
-                                } else {
-                                    method_type = MethodType::SELF_REF;       // &self
-                                }
-                            } else {
-                                if (shorthand_self->is_mutable) {
-                                    method_type = MethodType::SELF_MUT_VALUE; // mut self
-                                } else {
-                                    method_type = MethodType::SELF_VALUE;     // self
-                                }
-                            }
-                        } else if (auto typed_self = std::dynamic_pointer_cast<TypedSelf>(func->function_parameters->self_param->child)) {
-                            // 处理带类型注解的 self: self: Type, mut self: Type
-                            if (typed_self->is_mutable) {
-                                method_type = MethodType::SELF_MUT_VALUE; // mut self: Type
-                            } else {
-                                method_type = MethodType::SELF_VALUE;     // self: Type
-                            }
-                        }
-                    }
+            // 改为在 const_evaluator 中做这件事情。
+            // if (item->child) {
+            //     if (auto const_item = std::dynamic_pointer_cast<ConstantItem>(item->child)) {
+            //         std::string type_str = "unknown";
+            //         if (const_item->type) {
+            //             type_str = typeToString(const_item->type);
+            //         }
+            //         auto const_symbol = std::make_shared<ConstSymbol>(const_item->identifier, type_str);
+            //         trait_symbol->addConstSymbol(const_symbol);
+            //     } else if (auto func = std::dynamic_pointer_cast<Function>(item->child)) {
+            //         std::cout << "trait func " << func->identifier << std::endl;
+            //         std::string return_type_str = "()";
+            //         if (func->function_return_type && func->function_return_type->type) {
+            //             return_type_str = typeToString(func->function_return_type->type);
+            //         }
+            //         // 分析 self 参数类型
+            //         MethodType method_type = MethodType::NOT_METHOD;
+            //         if (func->function_parameters && func->function_parameters->self_param) {
+            //             if (auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(func->function_parameters->self_param->child)) {
+            //                 // 处理简写形式的 self: self, &self, mut self, &mut self
+            //                 if (shorthand_self->is_reference) {
+            //                     if (shorthand_self->is_mutable) {
+            //                         method_type = MethodType::SELF_MUT_REF;  // &mut self
+            //                     } else {
+            //                         method_type = MethodType::SELF_REF;       // &self
+            //                     }
+            //                 } else {
+            //                     if (shorthand_self->is_mutable) {
+            //                         method_type = MethodType::SELF_MUT_VALUE; // mut self
+            //                     } else {
+            //                         method_type = MethodType::SELF_VALUE;     // self
+            //                     }
+            //                 }
+            //             } else if (auto typed_self = std::dynamic_pointer_cast<TypedSelf>(func->function_parameters->self_param->child)) {
+            //                 // 处理带类型注解的 self: self: Type, mut self: Type
+            //                 if (typed_self->is_mutable) {
+            //                     method_type = MethodType::SELF_MUT_VALUE; // mut self: Type
+            //                 } else {
+            //                     method_type = MethodType::SELF_VALUE;     // self: Type
+            //                 }
+            //             }
+            //         }
                     
-                    auto func_symbol = std::make_shared<FuncSymbol>(func->identifier, return_type_str, func->is_const, method_type);
+            //         auto func_symbol = std::make_shared<FuncSymbol>(func->identifier, return_type_str, func->is_const, method_type);
+
+            //         // 访问函数参数
+            //         if (func->function_parameters) {
+            //             // 将参数添加到函数符号中
+            //             for (auto& param : func->function_parameters->function_param) {
+            //                 if (param) {
+            //                     auto var_symbol = createVariableSymbolFromPattern(param->pattern_no_top_alt, param->type);
+            //                     if (var_symbol) {
+            //                         func_symbol->addParameter(var_symbol);
+            //                     }
+            //                 }
+            //             }
+            //         }
                     
-                    if (method_type != MethodType::NOT_METHOD) {
-                        trait_symbol->addMethod(func_symbol);
-                    } else {
-                        trait_symbol->addAssociatedFunction(func_symbol);
-                    }
-                    current_scope->addFuncSymbol(func->identifier, func_symbol);
-                }
-            }
+            //         if (method_type != MethodType::NOT_METHOD) {
+            //             trait_symbol->addMethod(func_symbol);
+            //         } else {
+            //             trait_symbol->addAssociatedFunction(func_symbol);
+            //         }
+            //     }
+            // }
         }
     }
     
     // 将特征符号添加到父作用域
-    prev_scope->addTraitSymbol(node.identifier, trait_symbol);
+    // prev_scope->addTraitSymbol(node.identifier, trait_symbol);
     
     // 恢复作用域
     current_scope = prev_scope;
@@ -345,7 +309,7 @@ void SymbolCollector::visit(Implementation& node) {
 
 // 访问 InherentImpl
 void SymbolCollector::visit(InherentImpl& node) {
-    std::cout << "Visiting InherentImpl" << std::endl;
+    // std::cout << "Visiting InherentImpl" << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;
@@ -371,7 +335,7 @@ void SymbolCollector::visit(InherentImpl& node) {
 
 // 访问 TraitImpl
 void SymbolCollector::visit(TraitImpl& node) {
-    std::cout << "Visiting TraitImpl: " << node.identifier << std::endl;
+    // std::cout << "Visiting TraitImpl: " << node.identifier << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;
@@ -446,7 +410,7 @@ void SymbolCollector::visit(TypedSelf& node) {
 
 // 访问 BlockExpression - 处理块表达式作用域
 void SymbolCollector::visit(BlockExpression& node) {
-    std::cout << "Visiting BlockExpression" << std::endl;
+    // std::cout << "Visiting BlockExpression" << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;
@@ -530,7 +494,7 @@ void SymbolCollector::visit(LoopExpression& node) {
 
 // 访问 InfiniteLoopExpression
 void SymbolCollector::visit(InfiniteLoopExpression& node) {
-    std::cout << "Visiting InfiniteLoopExpression" << std::endl;
+    // std::cout << "Visiting InfiniteLoopExpression" << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;
@@ -553,7 +517,7 @@ void SymbolCollector::visit(InfiniteLoopExpression& node) {
 
 // 访问 PredicateLoopExpression
 void SymbolCollector::visit(PredicateLoopExpression& node) {
-    std::cout << "Visiting PredicateLoopExpression" << std::endl;
+    // std::cout << "Visiting PredicateLoopExpression" << std::endl;
     
     // 保存当前作用域
     auto prev_scope = current_scope;

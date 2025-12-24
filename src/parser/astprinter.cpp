@@ -843,8 +843,8 @@ void ASTPrinter::visit(PathIdentSegment& node) {
     output << " " << get_color_code("white");
     switch (node.type) {
         case 0: output << node.identifier; break;
-        case 1: output << "Self"; break;
-        case 2: output << "self"; break;
+        case 1: output << "self"; break;
+        case 2: output << "Self"; break;
     }
     output << reset_color() << "\n";
 }

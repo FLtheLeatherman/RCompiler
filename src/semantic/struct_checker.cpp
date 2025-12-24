@@ -10,7 +10,10 @@ StructChecker::StructChecker(std::shared_ptr<Scope> root_scope) {
 bool StructChecker::checkTypeExists(SymbolType type) {
     if (type.length() > 0 && type[0] == '&') type = type.substr(1);
     if (type.length() >= 3 && type.substr(0, 3) == "mut") type = type.substr(3);
-    while (type.length() > 0 && type[0] == '[') type = type.substr(1, type.length() - 2);
+    while (type.length() > 0 && type[0] == '[') {
+        while (type.back() != ']') type.pop_back();
+        type = type.substr(1, type.length() - 2);
+    }
     // builtin types
     for (auto builtin_type: builtin_types) {
         if (type == builtin_type) {
@@ -43,38 +46,39 @@ void StructChecker::handleTraitImpl(std::string identifier) {
     std::shared_ptr<StructSymbol> struct_symbol = current_scope->findStructSymbol(current_scope->getSelfType());
     std::shared_ptr<TraitSymbol> trait_symbol = current_scope->findTraitSymbol(identifier);
     if (struct_symbol == nullptr || trait_symbol == nullptr) {
-        throw std::runtime_error("Undefined Name");
+        throw std::runtime_error("Undefined Name struct or trait not found");
     }
 
     auto const_symbols = trait_symbol->getConstSymbols();
     if (const_symbols.size() != trait_symbol->getConstSymbols().size()) {
-        throw std::runtime_error("Undefined Name");
+        throw std::runtime_error("Undefined Name const size diff");
     }
     for (const auto& const_symbol: const_symbols) {
         if (!current_scope->constSymbolExists(const_symbol->getIdentifier())) {
-            throw std::runtime_error("Undefined Name");
+            throw std::runtime_error("Undefined Name const not exists");
         }
     }
-    auto func_symbols = trait_symbol->getAssociatedFunctions();
+    auto func_symbols = trait_symbol->getAllAssociatedFunctions();
     if (func_symbols.size() != current_scope->getFuncSymbolCount()) {
-        throw std::runtime_error("Undefined Name");
+        throw std::runtime_error("Undefined Name func size diff");
     }
     for (const auto& func_symbol: func_symbols) {
         auto impl_func = current_scope->getFuncSymbol(func_symbol->getIdentifier());
         if (impl_func->getMethodType() != func_symbol->getMethodType() || impl_func->isConst() != func_symbol->isConst()) {
-            throw std::runtime_error("Undefined Name");
+            throw std::runtime_error("Undefined Name method or const diff");
         }
         if (func_symbol->getReturnType() != impl_func->getReturnType()) {
-            throw std::runtime_error("Undefined Name");
+            throw std::runtime_error("Undefined Name return type diff");
         }
         auto trait_func_param = func_symbol->getParameters();
         auto impl_func_param = impl_func->getParameters();
         if (trait_func_param.size() != impl_func_param.size()) {
-            throw std::runtime_error("Undefined Name");
+            throw std::runtime_error("Undefined Name param size diff");
         }
         for (size_t _ = 0; _ < impl_func_param.size(); ++_) {
             if (impl_func_param[_]->getType() != trait_func_param[_]->getType()) {
-                throw std::runtime_error("Undefined Name");
+                // std::cout << impl_func_param[_]->getType() << ' ' << trait_func_param[_]->getType() << std::endl;
+                throw std::runtime_error("Undefined Name param type diff");
             }
         }
     }
@@ -104,21 +108,21 @@ void StructChecker::visit(Item& node) {
 }
 
 void StructChecker::visit(Function& node) {
-    std::cout << "visit function: " << node.identifier << std::endl;
+    // std::cout << "visit function: " << node.identifier << std::endl;
 
     // std::cout << "GOOD" << std::endl;
 
     auto function_symbol = current_scope->getFuncSymbol(node.identifier);
 
-    // std::cout << "GOOD" << std::endl;
+    // std::cout << function_symbol->getReturnType() << std::endl;
 
     if (!checkTypeExists(function_symbol->getReturnType())) {
-        throw std::runtime_error("Undefined Name");
+        throw std::runtime_error("Undefined Name in function return type");
     }
     auto function_params = function_symbol->getParameters();
     for (auto function_param: function_params) {
         if (!checkTypeExists(function_param->getType())) {
-            throw std::runtime_error("Undefined Name");
+            throw std::runtime_error("Undefined Name in function params");
         }
     }
 
@@ -137,7 +141,7 @@ void StructChecker::visit(Function& node) {
 }
 
 void StructChecker::visit(Struct& node) {
-    std::cout << "visit struct: " << std::endl;
+    // std::cout << "visit struct: " << std::endl;
     // struct 不会创建新的 scope，直接访问其内容
     if (node.struct_struct) {
         node.struct_struct->accept(this);
@@ -145,7 +149,7 @@ void StructChecker::visit(Struct& node) {
 }
 
 void StructChecker::visit(Enumeration& node) {
-    std::cout << "visit enum: " << std::endl;
+    // std::cout << "visit enum: " << std::endl;
     // 检查枚举符号是否存在
     auto enum_symbol = current_scope->getEnumSymbol(node.identifier);
     if (!enum_symbol) {
@@ -159,7 +163,7 @@ void StructChecker::visit(Enumeration& node) {
 }
 
 void StructChecker::visit(ConstantItem& node) {
-    std::cout << "visit constant item: " << node.identifier << std::endl;
+    // std::cout << "visit constant item: " << node.identifier << std::endl;
     // 从当前作用域获取常量符号
     auto const_symbol = current_scope->getConstSymbol(node.identifier);
     if (!const_symbol) {
@@ -173,7 +177,7 @@ void StructChecker::visit(ConstantItem& node) {
 }
 
 void StructChecker::visit(Trait& node) {
-    std::cout << "visit trait: " << node.identifier << std::endl;
+    // std::cout << "visit trait: " << node.identifier << std::endl;
     // 检查 trait 符号是否存在
     auto trait_symbol = current_scope->getTraitSymbol(node.identifier);
     if (!trait_symbol) {
@@ -196,14 +200,14 @@ void StructChecker::visit(Trait& node) {
 }
 
 void StructChecker::visit(Implementation& node) {
-    std::cout << "visit impl: " << std::endl;
+    // std::cout << "visit impl: " << std::endl;
     if (node.impl) {
         node.impl->accept(this);
     }
 }
 
 void StructChecker::visit(InherentImpl& node) {
-    std::cout << "visit inherent impl: " << std::endl;
+    // std::cout << "visit inherent impl: " << std::endl;
     // 进入 impl 作用域
     auto prev_scope = current_scope;
     current_scope = current_scope->getChild();
@@ -223,7 +227,7 @@ void StructChecker::visit(InherentImpl& node) {
 }
 
 void StructChecker::visit(TraitImpl& node) {
-    std::cout << "visit trait impl: " << node.identifier << std::endl;
+    // std::cout << "visit trait impl: " << node.identifier << std::endl;
     // 进入 impl 作用域
     auto prev_scope = current_scope;
     current_scope = current_scope->getChild();
@@ -243,7 +247,7 @@ void StructChecker::visit(TraitImpl& node) {
 }
 
 void StructChecker::visit(AssociatedItem& node) {
-    std::cout << "visit associated item: " << std::endl;
+    // std::cout << "visit associated item: " << std::endl;
     if (node.child) {
         node.child->accept(this);
     }

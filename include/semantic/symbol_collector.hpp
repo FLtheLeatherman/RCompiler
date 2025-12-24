@@ -7,15 +7,16 @@
 #include "symbol.hpp"
 #include "const_value.hpp"
 #include "const_evaluator.hpp"
+#include "utils.hpp"
 #include <memory>
+
 class SymbolCollector : public ASTVisitor {
 private:
     std::shared_ptr<Scope> current_scope;
     std::shared_ptr<Scope> root_scope;
     
     // 辅助方法
-    std::string typeToString(std::shared_ptr<Type> type);
-    std::shared_ptr<VariableSymbol> createVariableSymbolFromPattern(std::shared_ptr<PatternNoTopAlt> pattern, std::shared_ptr<Type> type);
+    // 已经全部移动到 utils
     
 public:
     SymbolCollector();

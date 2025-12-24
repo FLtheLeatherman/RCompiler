@@ -16,7 +16,7 @@ protected:
 
 public:
     ConstValue(std::shared_ptr<ASTNode> node);
-    virtual ~ConstValue() = default;
+    ~ConstValue() = default;
     
     // 获取对应的 AST 节点
     std::shared_ptr<ASTNode> getExpressionNode() const;

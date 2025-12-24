@@ -3,6 +3,7 @@
 #include "parser/parser.hpp"
 #include "parser/astprinter.hpp"
 #include "semantic/symbol_collector.hpp"
+#include "semantic/const_evaluator.hpp"
 #include "semantic/struct_checker.hpp"
 
 int main() {
@@ -14,7 +15,7 @@ int main() {
         code += ch;
         ch = getchar();
     }
-    std::cout << code << std::endl;
+    // std::cout << code << std::endl;
     Lexer lexer;
     auto tokens = lexer.lex(code);
     std::cout << tokens.size() << std::endl;
@@ -26,14 +27,19 @@ int main() {
     std::cout.flush();
     Parser parser(std::move(tokens));
     auto root = parser.parseCrate();
-    ASTPrinter printer(std::cerr, true);
+    ASTPrinter printer(std::cout, true);
     printer.set_indent_level(0);
     printer.visit(*root);
     SymbolCollector symbol_collector;
     symbol_collector.visit(*root);
     auto root_scope = symbol_collector.getRootScope();
-    root_scope->printScope();
+    // root_scope->printScope();
+    ConstEvaluator const_evaluator(root_scope);
+    const_evaluator.visit(*root);
+    // root_scope->printScope();
+    root_scope->clearPos();
     StructChecker struct_checker(root_scope);
     struct_checker.visit(*root);
+    root_scope->printScope();
     root_scope->clearPos();
 }

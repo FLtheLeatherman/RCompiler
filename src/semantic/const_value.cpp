@@ -3,8 +3,6 @@
 #include <sstream>
 #include <stdexcept>
 
-// 需要包含具体的字面量类型
-#include "parser/astnode.hpp"
 
 // ConstValue 基类实现
 ConstValue::ConstValue(std::shared_ptr<ASTNode> node) : expression_node(node) {}

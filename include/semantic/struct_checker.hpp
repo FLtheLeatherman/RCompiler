@@ -20,7 +20,7 @@ class StructChecker : public ASTVisitor {
 private:
     std::shared_ptr<Scope> current_scope;
     std::shared_ptr<Scope> root_scope;
-    const std::vector<std::string> builtin_types = {"bool", "i32", "u32", "usize", "char", "str", "()"};
+    const std::vector<std::string> builtin_types = {"bool", "i32", "u32", "usize", "char", "str", "()", "self", "Self"};
     bool checkTypeExists(SymbolType);
     void handleInherentImpl();
     void handleTraitImpl(std::string);

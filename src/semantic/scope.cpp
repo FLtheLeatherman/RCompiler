@@ -304,6 +304,11 @@ void Scope::printScope(int indent) const {
         for (const auto& [name, symbol] : func_symbols) {
             std::cout << indent_str << "  " << name << ": " << symbol->getType()
                       << " -> " << symbol->getReturnType() << std::endl;
+            auto func_params = symbol->getParameters();
+            for (const auto& sb: func_params) {
+                std::cout << indent_str << "    Param: " << sb->getIdentifier() 
+                          << " Type: " << sb->getType() << std::endl;
+            }
         }
     }
     
@@ -311,7 +316,7 @@ void Scope::printScope(int indent) const {
     if (!trait_symbols.empty()) {
         std::cout << indent_str << "Traits:" << std::endl;
         for (const auto& [name, symbol] : trait_symbols) {
-            std::cout << indent_str << "  " << name << ": " << symbol->getType() << std::endl;
+            std::cout << indent_str << "  " << name << ": " << symbol->getType() << ' ' << symbol->getAllAssociatedFunctions().size() << std::endl;
         }
     }
     

@@ -4,6 +4,10 @@
 // Symbol 基类实现
 Symbol::Symbol(const SymbolType& type) : type(type) {}
 
+void Symbol::setType(SymbolType type) {
+    this->type = type;
+}
+
 SymbolType Symbol::getType() {
     return type;
 }
@@ -32,7 +36,7 @@ bool ConstSymbol::hasValue() const {
 }
 
 // VariableSymbol 类实现
-VariableSymbol::VariableSymbol(const std::string& identifier, const SymbolType& type, bool is_ref, bool is_mut)
+VariableSymbol::VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref, bool is_mut)
     : Symbol(type), identifier(identifier), is_ref(is_ref), is_mut(is_mut) {}
 
 std::string VariableSymbol::getIdentifier() const {
@@ -57,7 +61,12 @@ std::string StructSymbol::getIdentifier() const {
 
 // 字段管理
 void StructSymbol::addField(std::shared_ptr<VariableSymbol> field) {
+    // std::cout << "add field " << field->getIdentifier() << std::endl;
     vars[field->getIdentifier()] = field;
+}
+
+void StructSymbol::eraseField(std::string str) {
+    vars.erase(vars.find(str));
 }
 
 bool StructSymbol::hasField(const std::string& name) const {
@@ -230,6 +239,10 @@ const std::vector<std::shared_ptr<VariableSymbol>>& FuncSymbol::getParameters() 
 
 SymbolType FuncSymbol::getReturnType() const {
     return return_type;
+}
+
+void FuncSymbol::setReturnType(std::string return_type) {
+    this->return_type = return_type;
 }
 
 // TraitSymbol 类实现

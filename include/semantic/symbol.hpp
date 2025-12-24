@@ -18,6 +18,7 @@ private:
 public:
     Symbol(const SymbolType& type);
     virtual ~Symbol() = default;
+    void setType(SymbolType);
     SymbolType getType();
 };
 
@@ -40,7 +41,7 @@ private:
     bool is_ref;
     bool is_mut;
 public:
-    VariableSymbol(const std::string& identifier, const SymbolType& type, bool is_ref = false, bool is_mut = false);
+    VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref = false, bool is_mut = false);
     std::string getIdentifier() const;
     bool isRef() const;
     bool isMut() const;
@@ -59,6 +60,7 @@ public:
     
     // 字段管理
     void addField(std::shared_ptr<VariableSymbol> field);
+    void eraseField(std::string str);
     bool hasField(const std::string& name) const;
     std::shared_ptr<VariableSymbol> getField(const std::string& name) const;
     std::vector<std::shared_ptr<VariableSymbol>> getFields() const;
@@ -130,6 +132,7 @@ public:
     void addParameter(std::shared_ptr<VariableSymbol> param);
     const std::vector<std::shared_ptr<VariableSymbol>>& getParameters() const;
     SymbolType getReturnType() const;
+    void setReturnType(std::string);
 };
 
 class TraitSymbol : public Symbol {

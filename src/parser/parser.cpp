@@ -1204,10 +1204,10 @@ std::shared_ptr<PathIdentSegment> Parser::parsePathIdentSegment() {
         return std::make_shared<PathIdentSegment>(0, std::move(identifier));
     } else if (peek() == Token::kSelf) {
         consume();
-        return std::make_shared<PathIdentSegment>(1, "");
+        return std::make_shared<PathIdentSegment>(1, "self");
     } else if (peek() == Token::kSelf_) {
         consume();
-        return std::make_shared<PathIdentSegment>(2, "");
+        return std::make_shared<PathIdentSegment>(2, "Self");
     } else {
         throw std::runtime_error("parse failed! Unexpected token in path ident segment");
     }
