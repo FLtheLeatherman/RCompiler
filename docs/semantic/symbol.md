@@ -215,6 +215,16 @@
 - **函数符号**: `addFuncSymbol()`, `getFuncSymbol()`, `hasFuncSymbol()`, `getFuncSymbols()`
 - **特征符号**: `addTraitSymbol()`, `getTraitSymbol()`, `hasTraitSymbol()`, `getTraitSymbols()`
 
+**变量表管理**:
+- `addVariable()`: 添加变量到当前作用域的变量表，支持指定可变性
+- `getVariableType()`: 获取当前作用域中指定变量的类型
+- `isVariableMutable()`: 获取当前作用域中指定变量的可变性
+- `hasVariable()`: 检查当前作用域中是否存在指定变量
+- `getVariableTable()`: 获取当前作用域的完整变量表
+- `findVariableType()`: 在作用域链中查找变量的类型
+- `findVariableMutable()`: 在作用域链中查找变量的可变性
+- `variableExists()`: 检查变量是否在作用域链中存在
+
 **作用域链查找**:
 - `findSymbol()`: 在作用域链中查找常量符号
 - `findStructSymbol()`: 在作用域链中查找结构体符号
@@ -234,8 +244,44 @@
 - `hasSymbolInCurrentScope()`: 检查当前作用域中是否存在符号
 
 **调试和工具**:
-- `printScope()`: 打印作用域层次结构和符号信息
+- `printScope()`: 打印作用域层次结构和符号信息，包括变量表内容
 - `getTotalSymbolCount()`: 获取作用域树中的总符号数量
+
+#### 变量表 (Variable Table)
+
+每个 Scope 现在包含一个 `variable_table`，用于存储当前作用域中变量的状态信息：
+
+- **数据结构**: `std::unordered_map<std::string, VariableInfo>`
+- **键**: 变量标识符 (identifier)
+- **值**: `VariableInfo` 结构体，包含：
+  - `type`: 变量类型的字符串表示
+  - `is_mutable`: 布尔值，表示变量是否可变
+
+**VariableInfo 结构体**:
+```cpp
+struct VariableInfo {
+    std::string type;
+    bool is_mutable;
+    
+    VariableInfo() : type(""), is_mutable(false) {}
+    VariableInfo(const std::string& t, bool mut = false) : type(t), is_mutable(mut) {}
+};
+```
+
+**功能特性**:
+- **作用域隔离**: 每个作用域维护独立的变量表，支持变量遮蔽
+- **可变性跟踪**: 记录每个变量是否为可变变量，支持 Rust 的所有权系统
+- **作用域链查找**: `findVariableType()` 和 `findVariableMutable()` 支持向上层作用域查找变量
+- **类型字符串存储**: 使用字符串表示类型，便于调试和类型检查
+- **调试支持**: `printScope()` 会显示当前作用域的所有变量信息，包括可变性标记
+
+**使用场景**:
+- 类型检查阶段跟踪变量类型和可变性
+- 变量存在性验证
+- Rust 所有权和借用检查的基础
+- 可变性规则验证
+- 作用域规则实现
+- 调试和诊断信息生成
 
 ## 特性
 
@@ -315,9 +361,15 @@
 - **函数**: 收集函数名、参数列表、返回类型，参数作为 VariableSymbol 存储在函数作用域中
 - **特征**: 收集特征名、关联常量和关联函数
 
-值得注意的是，我们没有处理局部变量，这应当是类型检查部分的工作。
+现在我们可以处理局部变量了。通过 Scope 的 variable_table，我们可以在符号收集阶段记录局部变量的信息：
 
-同时，我们也没有处理数组类型，因为确定其长度需要常量求值。
+- **局部变量收集**: 在 `visit(LetStatement&)` 中收集局部变量，使用 `addVariable()` 添加到当前作用域的变量表
+- **变量类型跟踪**: 使用字符串表示变量类型，便于后续类型检查
+- **可变性跟踪**: 记录变量是否为可变变量（通过 `mut` 关键字），为 Rust 的所有权系统提供基础
+- **作用域规则**: 局部变量遵循标准的作用域规则，支持变量遮蔽
+- **可变性验证**: 支持在后续的类型检查阶段验证变量的可变性使用
+
+注意：我们仍然没有处理数组类型，因为确定其长度需要常量求值。
 
 ### 4. StructSymbol 的关联项管理
 
@@ -351,12 +403,15 @@ StructSymbol 现在支持存储以下类型的关联项：
 
 ## 下一步
 
-符号系统、符号收集器和结构体检查器已完成实现。下一步可以：
+符号系统、符号收集器、结构体检查器和变量表管理（包含可变性支持）已完成实现。下一步可以：
 
 1. 实现名称解析功能，利用已建立的符号表和作用域结构
-2. 添加类型检查功能
-3. 实现更复杂的语义分析功能
-4. 添加错误处理和诊断信息
+2. 添加类型检查功能，现在可以利用 variable_table 进行变量类型和可变性验证
+3. 实现 Rust 所有权和借用检查的基础功能
+4. 实现可变性规则验证（如不可变变量的修改检查）
+5. 实现更复杂的语义分析功能
+6. 添加错误处理和诊断信息
+7. 在符号收集阶段集成局部变量的完整处理
 
 ## 相关文档
 

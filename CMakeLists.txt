@@ -19,6 +19,7 @@ add_executable(code
         src/semantic/symbol_collector.cpp
         src/semantic/const_evaluator.cpp
         src/semantic/struct_checker.cpp
+        src/semantic/type_checker.cpp
         src/main.cpp
 )
 

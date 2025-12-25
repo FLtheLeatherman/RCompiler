@@ -10,6 +10,7 @@ class ASTPrinter;
 
 class ASTNode {
 public:
+    std::string type;
     ASTNode() = default;
     virtual ~ASTNode() = default;
     virtual void accept(ASTVisitor*) = 0;

@@ -6,6 +6,15 @@
 
 #include "symbol.hpp"
 
+// 变量信息结构体，包含类型和可变性标记
+struct VariableInfo {
+    std::string type;
+    bool is_mutable;
+    
+    VariableInfo() : type(""), is_mutable(false) {}
+    VariableInfo(const std::string& t, bool mut = false) : type(t), is_mutable(mut) {}
+};
+
 enum class ScopeType {
     GLOBAL,
     BLOCK,
@@ -27,6 +36,7 @@ private:
     std::unordered_map<std::string, std::shared_ptr<EnumSymbol>> enum_symbols;
     std::unordered_map<std::string, std::shared_ptr<FuncSymbol>> func_symbols;
     std::unordered_map<std::string, std::shared_ptr<TraitSymbol>> trait_symbols;
+    std::unordered_map<std::string, VariableInfo> variable_table;
 
 public:
     // 构造函数
@@ -75,6 +85,16 @@ public:
     std::shared_ptr<TraitSymbol> getTraitSymbol(const std::string& name) const;
     bool hasTraitSymbol(const std::string& name) const;
     const std::unordered_map<std::string, std::shared_ptr<TraitSymbol>>& getTraitSymbols() const;
+    
+    // 变量表管理
+    void addVariable(const std::string& name, const std::string& type, bool is_mutable = false);
+    std::string getVariableType(const std::string& name) const;
+    bool isVariableMutable(const std::string& name) const;
+    bool hasVariable(const std::string& name) const;
+    const std::unordered_map<std::string, VariableInfo>& getVariableTable() const;
+    std::string findVariableType(const std::string& name) const; // 在作用域链中查找
+    bool findVariableMutable(const std::string& name) const; // 在作用域链中查找变量可变性
+    bool variableExists(const std::string& name) const; // 在作用域链中检查变量是否存在
     
     // 通用符号查找（在作用域链中查找）
     std::shared_ptr<Symbol> findSymbol(const std::string& name) const;

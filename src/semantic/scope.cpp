@@ -160,6 +160,67 @@ const std::unordered_map<std::string, std::shared_ptr<TraitSymbol>>& Scope::getT
     return trait_symbols;
 }
 
+// 变量表管理
+void Scope::addVariable(const std::string& name, const std::string& type, bool is_mutable) {
+    variable_table[name] = VariableInfo(type, is_mutable);
+}
+
+std::string Scope::getVariableType(const std::string& name) const {
+    auto it = variable_table.find(name);
+    if (it != variable_table.end()) {
+        return it->second.type;
+    }
+    return "";
+}
+
+bool Scope::isVariableMutable(const std::string& name) const {
+    auto it = variable_table.find(name);
+    if (it != variable_table.end()) {
+        return it->second.is_mutable;
+    }
+    return false;
+}
+
+bool Scope::hasVariable(const std::string& name) const {
+    return variable_table.find(name) != variable_table.end();
+}
+
+const std::unordered_map<std::string, VariableInfo>& Scope::getVariableTable() const {
+    return variable_table;
+}
+
+std::string Scope::findVariableType(const std::string& name) const {
+    auto var_type = getVariableType(name);
+    if (!var_type.empty()) {
+        return var_type;
+    }
+    
+    // 向上查找
+    if (parent_scope) {
+        return parent_scope->findVariableType(name);
+    }
+    
+    return "";
+}
+
+bool Scope::findVariableMutable(const std::string& name) const {
+    auto var_info = variable_table.find(name);
+    if (var_info != variable_table.end()) {
+        return var_info->second.is_mutable;
+    }
+    
+    // 向上查找
+    if (parent_scope) {
+        return parent_scope->findVariableMutable(name);
+    }
+    
+    return false;
+}
+
+bool Scope::variableExists(const std::string& name) const {
+    return !findVariableType(name).empty();
+}
+
 // 通用符号查找（在作用域链中查找）
 std::shared_ptr<Symbol> Scope::findSymbol(const std::string& name) const {
     // 首先在当前作用域查找常量符号
@@ -317,6 +378,15 @@ void Scope::printScope(int indent) const {
         std::cout << indent_str << "Traits:" << std::endl;
         for (const auto& [name, symbol] : trait_symbols) {
             std::cout << indent_str << "  " << name << ": " << symbol->getType() << ' ' << symbol->getAllAssociatedFunctions().size() << std::endl;
+        }
+    }
+    
+    // 打印变量表
+    if (!variable_table.empty()) {
+        std::cout << indent_str << "Variables:" << std::endl;
+        for (const auto& [name, var_info] : variable_table) {
+            std::cout << indent_str << "  " << name << ": " << var_info.type
+                      << (var_info.is_mutable ? " (mut)" : " (immutable)") << std::endl;
         }
     }
     

@@ -16,10 +16,6 @@ public:
     ConstEvaluator(std::shared_ptr<Scope> root_scope);
     ~ConstEvaluator() = default;
     
-    // 辅助函数
-    std::shared_ptr<ConstValue> createConstValueFromExpression(std::shared_ptr<ASTNode> expression);
-    std::string handleArraySymbol(std::shared_ptr<Type> node);
-    
     void visit(Crate&) override;
     void visit(Item&) override;
 
