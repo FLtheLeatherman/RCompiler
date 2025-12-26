@@ -39,6 +39,7 @@ if15 -1
 loop1 0
 loop2 0
 loop3 0
+loop4 0
 loop5 0
 loop6 -1
 loop7 -1
