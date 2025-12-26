@@ -28,7 +28,8 @@ class Scope : public std::enable_shared_from_this<Scope> {
 private:
     ScopeType type;
     size_t pos; // 目前应该访问哪个 children?
-    std::string self_type; // for impl scope
+    std::string self_type; // for impl scope & function scope
+    std::string break_type;
     std::shared_ptr<Scope> parent_scope;
     std::vector<std::shared_ptr<Scope>> children;
     std::unordered_map<std::string, std::shared_ptr<ConstSymbol>> const_symbols;
@@ -51,6 +52,8 @@ public:
     void resetChild();
     void setSelfType(std::string);
     std::string getSelfType();
+    void setBreakType(std::string);
+    std::string getBreakType();
     
     // 作用域层次结构管理
     void addChild(std::shared_ptr<Scope> child);

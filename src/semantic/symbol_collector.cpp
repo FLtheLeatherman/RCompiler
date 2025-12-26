@@ -73,6 +73,7 @@ void SymbolCollector::visit(Function& node) {
 
     // 创建函数作用域
     auto func_scope = std::make_shared<Scope>(ScopeType::FUNCTION, current_scope);
+    func_scope->setSelfType(node.identifier);
     current_scope = func_scope;
 
     // 访问函数参数

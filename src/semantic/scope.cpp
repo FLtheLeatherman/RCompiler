@@ -43,6 +43,13 @@ std::string Scope::getSelfType() {
     return this->self_type;
 }
 
+void Scope::setBreakType(std::string break_type) {
+    this->break_type = break_type;
+}
+std::string Scope::getBreakType() {
+    return this->break_type;
+}
+
 // 作用域层次结构管理
 void Scope::addChild(std::shared_ptr<Scope> child) {
     if (child) {

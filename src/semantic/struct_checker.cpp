@@ -7,24 +7,6 @@ StructChecker::StructChecker(std::shared_ptr<Scope> root_scope) {
     this->current_scope = this->root_scope = root_scope;
 }
 
-bool StructChecker::checkTypeExists(SymbolType type) {
-    if (type.length() > 0 && type[0] == '&') type = type.substr(1);
-    if (type.length() >= 3 && type.substr(0, 3) == "mut") type = type.substr(3);
-    while (type.length() > 0 && type[0] == '[') {
-        while (type.back() != ']') type.pop_back();
-        type = type.substr(1, type.length() - 2);
-    }
-    // builtin types
-    for (auto builtin_type: builtin_types) {
-        if (type == builtin_type) {
-            return true;
-        }
-    }
-    if (current_scope->structSymbolExists(type)) return true;
-    if (current_scope->enumSymbolExists(type)) return true;
-    return false;
-}
-
 void StructChecker::handleInherentImpl() {
     std::shared_ptr<StructSymbol> struct_symbol = current_scope->findStructSymbol(current_scope->getSelfType());
     if (struct_symbol == nullptr) {
@@ -116,12 +98,12 @@ void StructChecker::visit(Function& node) {
 
     // std::cout << function_symbol->getReturnType() << std::endl;
 
-    if (!checkTypeExists(function_symbol->getReturnType())) {
+    if (!checkTypeExists(current_scope, function_symbol->getReturnType())) {
         throw std::runtime_error("Undefined Name in function return type");
     }
     auto function_params = function_symbol->getParameters();
     for (auto function_param: function_params) {
-        if (!checkTypeExists(function_param->getType())) {
+        if (!checkTypeExists(current_scope, function_param->getType())) {
             throw std::runtime_error("Undefined Name in function params");
         }
     }
@@ -171,7 +153,7 @@ void StructChecker::visit(ConstantItem& node) {
     }
     
     // 检查常量类型是否存在
-    if (!checkTypeExists(const_symbol->getType())) {
+    if (!checkTypeExists(current_scope, const_symbol->getType())) {
         throw std::runtime_error("Undefined Name");
     }
 }

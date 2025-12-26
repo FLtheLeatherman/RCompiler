@@ -87,6 +87,10 @@ std::vector<std::shared_ptr<VariableSymbol>> StructSymbol::getFields() const {
     return result;
 }
 
+int StructSymbol::getFieldSize() const {
+    return vars.size();
+}
+
 // 关联常量管理
 void StructSymbol::addAssociatedConst(std::shared_ptr<ConstSymbol> const_symbol) {
     associated_consts[const_symbol->getIdentifier()] = const_symbol;

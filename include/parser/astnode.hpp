@@ -10,6 +10,7 @@ class ASTPrinter;
 
 class ASTNode {
 public:
+    bool mutability;
     std::string type;
     ASTNode() = default;
     virtual ~ASTNode() = default;
@@ -839,11 +840,11 @@ public:
 
 class PathIdentSegment: public ASTNode {
 public:
-    int type; // 0 for identifier, 1 for Self, 2 for self
+    int path_type; // 0 for identifier, 1 for Self, 2 for self
     std::string identifier;
 public:
-    PathIdentSegment(int type, std::string identifier)
-        : type(type), identifier(std::move(identifier)) {}
+    PathIdentSegment(int path_type, std::string identifier)
+        : path_type(path_type), identifier(std::move(identifier)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -914,13 +915,13 @@ public:
     };
     
 public:
-    BinaryType type;
+    BinaryType binary_type;
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;
     
 public:
-    BinaryExpression(BinaryType type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs)
-        : type(type), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+    BinaryExpression(BinaryType binary_type, std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs)
+        : binary_type(binary_type), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
     
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);

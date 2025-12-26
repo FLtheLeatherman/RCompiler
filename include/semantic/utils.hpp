@@ -7,6 +7,8 @@
 #include <memory>
 #include "parser/astnode.hpp"
 #include "const_value.hpp"
+#include "symbol.hpp"
+#include "scope.hpp"
 
 inline std::string typeToString(std::shared_ptr<Type> type) {
     if (!type || !type->child) {
@@ -18,7 +20,8 @@ inline std::string typeToString(std::shared_ptr<Type> type) {
         return path_ident->identifier;
     } else if (auto ref_type = std::dynamic_pointer_cast<ReferenceType>(type->child)) {
         std::string base_type = typeToString(ref_type->type);
-        return (ref_type->is_mutable ? "&mut " : "&") + base_type;
+        // return (ref_type->is_mutable ? "&mut " : "&") + base_type;
+        return "&" + base_type;
     } else if (auto array_type = std::dynamic_pointer_cast<ArrayType>(type->child)) {
         std::string base_type = typeToString(array_type->type);
         return "[" + base_type + "]";
@@ -143,7 +146,7 @@ inline std::shared_ptr<ConstValue> createConstValueFromExpression(std::shared_pt
         auto right_int = std::dynamic_pointer_cast<ConstValueInt>(right_value);
         
         int result;
-        switch (binary_expr->type) {
+        switch (binary_expr->binary_type) {
             case BinaryExpression::PLUS:
                 result = left_int->getValue() + right_int->getValue();
                 break;
@@ -225,4 +228,31 @@ inline std::string handleArraySymbol(std::shared_ptr<Scope> current_scope, std::
         // std::cout << "啊！" << std::endl;
         throw std::runtime_error("Const Evaluation Error: Array symbol parse failed");
     }
+}
+
+const std::vector<std::string> builtin_types = {"bool", "i32", "isize", "u32", "usize", "char", "str", "()", "self", "Self"};
+inline bool checkTypeExists(std::shared_ptr<Scope> current_scope, SymbolType type) {
+    if (type.length() > 0 && type[0] == '&') type = type.substr(1);
+    if (type.length() >= 3 && type.substr(0, 3) == "mut") type = type.substr(3);
+    while (type.length() > 0 && type[0] == '[') {
+        while (type.back() != ']') type.pop_back();
+        type = type.substr(1, type.length() - 2);
+    }
+    // builtin types
+    for (auto builtin_type: builtin_types) {
+        if (type == builtin_type) {
+            return true;
+        }
+    }
+    if (current_scope->structSymbolExists(type)) return true;
+    if (current_scope->enumSymbolExists(type)) return true;
+    return false;
+}
+
+inline std::string typeToString_(std::shared_ptr<Scope> current_scope, std::shared_ptr<Type> type) {
+    auto str = typeToString(type);
+    if (str.back() == ']') {
+        str = handleArraySymbol(current_scope, type);
+    }
+    return str;
 }

@@ -464,7 +464,7 @@ void ASTPrinter::visit(DereferenceExpression& node) {
 void ASTPrinter::visit(BinaryExpression& node) {
     print_with_indent(get_color_code("magenta") + "BinaryExpression" + reset_color());
     std::string op;
-    switch (node.type) {
+    switch (node.binary_type) {
         case BinaryExpression::PLUS: op = "+"; break;
         case BinaryExpression::MINUS: op = "-"; break;
         case BinaryExpression::STAR: op = "*"; break;
@@ -841,7 +841,7 @@ void ASTPrinter::visit(PathInExpression& node) {
 void ASTPrinter::visit(PathIdentSegment& node) {
     print_with_indent(get_color_code("cyan") + "PathIdentSegment" + reset_color());
     output << " " << get_color_code("white");
-    switch (node.type) {
+    switch (node.path_type) {
         case 0: output << node.identifier; break;
         case 1: output << "self"; break;
         case 2: output << "Self"; break;

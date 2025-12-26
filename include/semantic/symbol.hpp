@@ -64,6 +64,7 @@ public:
     bool hasField(const std::string& name) const;
     std::shared_ptr<VariableSymbol> getField(const std::string& name) const;
     std::vector<std::shared_ptr<VariableSymbol>> getFields() const;
+    int getFieldSize() const;
     
     // 关联常量管理
     void addAssociatedConst(std::shared_ptr<ConstSymbol> const_symbol);

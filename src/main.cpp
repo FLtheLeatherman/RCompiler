@@ -5,6 +5,7 @@
 #include "semantic/symbol_collector.hpp"
 #include "semantic/const_evaluator.hpp"
 #include "semantic/struct_checker.hpp"
+#include "semantic/type_checker.hpp"
 
 int main() {
     freopen("test.in", "r", stdin);
@@ -40,6 +41,10 @@ int main() {
     root_scope->clearPos();
     StructChecker struct_checker(root_scope);
     struct_checker.visit(*root);
+    root_scope->printScope();
+    root_scope->clearPos();
+    TypeChecker type_checker(root_scope);
+    type_checker.visit(*root);
     root_scope->printScope();
     root_scope->clearPos();
 }
