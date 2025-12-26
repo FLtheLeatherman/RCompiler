@@ -42,8 +42,12 @@ inline std::shared_ptr<VariableSymbol> createVariableSymbolFromPattern(
     
     if (auto ident_pattern = std::dynamic_pointer_cast<IdentifierPattern>(pattern->child)) {
         std::string type_str = typeToString(type);
-        return std::make_shared<VariableSymbol>(ident_pattern->identifier, type_str,
-                                               ident_pattern->is_ref, ident_pattern->is_mutable);
+        bool is_ref = false, is_mut = false;
+        if (auto ref_type = std::dynamic_pointer_cast<ReferenceType>(type->child)) {
+            is_ref = true;
+            is_mut = ref_type->is_mutable;
+        }
+        return std::make_shared<VariableSymbol>(ident_pattern->identifier, type_str, is_ref | ident_pattern->is_ref, is_mut | ident_pattern->is_mutable);
     } else if (auto ref_pattern = std::dynamic_pointer_cast<ReferencePattern>(pattern->child)) {
         return createVariableSymbolFromPattern(ref_pattern->pattern, type);
     }
@@ -97,14 +101,15 @@ inline std::shared_ptr<ConstValue> createConstValueFromExpression(std::shared_pt
             auto struct_identifier = path_in_expr->segment1->identifier;
             auto identifier = path_in_expr->segment2->identifier;
             auto struct_symbol = current_scope->findStructSymbol(struct_identifier);
-            if (!struct_symbol) throw std::runtime_error("Const Evaluation Error");
+            if (!struct_symbol) throw std::runtime_error("Const Evaluation Error1");
             auto const_symbol = struct_symbol->getAssociatedConst(identifier);
-            if (!const_symbol) throw std::runtime_error("Const Evaluation Error");
+            if (!const_symbol) throw std::runtime_error("Const Evaluation Error2");
             return const_symbol->getValue();
         } else {
             auto identifier = path_in_expr->segment1->identifier;
-            auto const_symbol = current_scope->getConstSymbol(identifier);
-            if (!const_symbol) throw std::runtime_error("Const Evaluation Error");
+            auto const_symbol = current_scope->findConstSymbol(identifier);
+            // std::cout << identifier << std::endl;
+            if (!const_symbol) throw std::runtime_error("Const Evaluation Error3");
             return const_symbol->getValue();
         }
     }
@@ -206,17 +211,14 @@ inline std::shared_ptr<ConstValue> createConstValueFromExpression(std::shared_pt
 
 inline std::string handleArraySymbol(std::shared_ptr<Scope> current_scope, std::shared_ptr<Type> node) {
     if (auto ref_type = std::dynamic_pointer_cast<ReferenceType>(node->child)) {
-        // std::cout << "啊？" << std::endl;
         std::string res = "&";
-        if (ref_type->is_mutable) res += "mut";
+        // if (ref_type->is_mutable) res += "mut";
         return res + handleArraySymbol(current_scope, ref_type->type);
     } else if (auto type_path = std::dynamic_pointer_cast<PathIdentSegment>(node->child)) {
-        // std::cout << "cast to pathtype!" << std::endl;
-        // std::cout << type_path->identifier << std::endl;
         return type_path->identifier;
     } else if (auto array_type = std::dynamic_pointer_cast<ArrayType>(node->child)) {
-        // std::cout << "cast to arraytype!" << std::endl;
         auto expression = array_type->expression;
+        std::cout << array_type->expression->type << std::endl;
         auto length = createConstValueFromExpression(current_scope, expression);
         if (!length->isInt()) {
             throw std::runtime_error("Const Evaluation Error: Array length not integer");
@@ -230,7 +232,7 @@ inline std::string handleArraySymbol(std::shared_ptr<Scope> current_scope, std::
     }
 }
 
-const std::vector<std::string> builtin_types = {"bool", "i32", "isize", "u32", "usize", "char", "str", "()", "self", "Self"};
+const std::vector<std::string> builtin_types = {"bool", "i32", "isize", "u32", "usize", "char", "str", "String", "()", "self", "Self"};
 inline bool checkTypeExists(std::shared_ptr<Scope> current_scope, SymbolType type) {
     if (type.length() > 0 && type[0] == '&') type = type.substr(1);
     if (type.length() >= 3 && type.substr(0, 3) == "mut") type = type.substr(3);

@@ -35,6 +35,9 @@ void SymbolCollector::visit(Function& node) {
     std::string return_type_str = "()";  // 默认返回类型
     if (node.function_return_type && node.function_return_type->type) {
         return_type_str = typeToString(node.function_return_type->type);
+        if (return_type_str == "Self") {
+            return_type_str = current_scope->getImplSelfType();
+        }
     }
     
     // 分析 self 参数类型

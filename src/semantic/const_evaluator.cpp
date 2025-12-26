@@ -24,7 +24,8 @@ void ConstEvaluator::visit(Function& node) {
         auto func_symbol = current_scope->getFuncSymbol(node.identifier);
         auto func_symbol_params = func_symbol->getParameters();
         for (size_t i = 0; i < func_params.size(); ++i) {
-            if (func_symbol_params[i]->getType()[0] == '[') {
+            auto tmp = func_symbol_params[i]->getType();
+            if (tmp[0] == '[' || (tmp.length() > 1 && tmp[0] == '&' && tmp[1] == '[')) {
                 auto type = handleArraySymbol(current_scope, func_params[i]->type);
                 func_symbol_params[i]->setType(type);
             }
@@ -33,7 +34,7 @@ void ConstEvaluator::visit(Function& node) {
 
     auto func_symbol = current_scope->getFuncSymbol(node.identifier);
     auto func_return_type = func_symbol->getReturnType();
-    if (func_return_type[0] == '[') {
+    if (func_return_type[0] == '[' || (func_return_type.length() > 1 && func_return_type[0] == '&' && func_return_type[1] == '[')) {
         auto type = node.function_return_type->type;
         auto new_type = handleArraySymbol(current_scope, type);
         func_symbol->setReturnType(new_type);
@@ -57,7 +58,7 @@ void ConstEvaluator::visit(StructStruct& node) {
     for (auto struct_field: struct_fields) {
         auto type = typeToString(struct_field->type);
         // std::cout << type << std::endl;
-        if (type[0] == '[') {
+        if (type[0] == '[' || (type.length() > 1 && type[0] == '&' && type[1] == '[')) {
             auto arr_type = handleArraySymbol(current_scope, struct_field->type);
             // std::cout << arr_type << std::endl;
             auto field_symbol = struct_symbol->getField(struct_field->identifier);
@@ -108,6 +109,8 @@ void ConstEvaluator::visit(Trait& node) {
                     }
                     if (type_str[0] == '[') {
                         type_str = handleArraySymbol(current_scope, const_item->type);
+                    } else if (type_str.length() > 1 && type_str[0] == '&' && type_str[1] == '[') {
+                        type_str = handleArraySymbol(current_scope, const_item->type);
                     }
                     auto const_symbol = std::make_shared<ConstSymbol>(const_item->identifier, type_str);
                     const_symbol->setValue(createConstValueFromExpression(current_scope, const_item->expression));
@@ -155,7 +158,11 @@ void ConstEvaluator::visit(Trait& node) {
                             if (param) {
                                 auto var_symbol = createVariableSymbolFromPattern(param->pattern_no_top_alt, param->type);
                                 if (var_symbol) {
-                                    if (var_symbol->getType()[0] == '[') {
+                                    auto type_str = var_symbol->getType();
+                                    if (type_str[0] == '[') {
+                                        auto new_type = handleArraySymbol(current_scope, param->type);
+                                        var_symbol->setType(new_type);
+                                    } else if (type_str.length() > 1 && type_str[0] == '&' && type_str[1] == '[') {
                                         auto new_type = handleArraySymbol(current_scope, param->type);
                                         var_symbol->setType(new_type);
                                     }

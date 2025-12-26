@@ -50,6 +50,14 @@ std::string Scope::getBreakType() {
     return this->break_type;
 }
 
+std::string Scope::getImplSelfType() {
+    if (type == ScopeType::IMPL) return self_type;
+    if (parent_scope) {
+        return parent_scope->getImplSelfType();
+    }
+    return "";
+}
+
 // 作用域层次结构管理
 void Scope::addChild(std::shared_ptr<Scope> child) {
     if (child) {
@@ -242,6 +250,17 @@ std::shared_ptr<Symbol> Scope::findSymbol(const std::string& name) const {
     return nullptr;
 }
 
+std::shared_ptr<ConstSymbol> Scope::findConstSymbol(const std::string& name) const {
+    auto const_sym = getConstSymbol(name);
+    if (const_sym) return const_sym;
+    
+    if (parent_scope) {
+        return parent_scope->findConstSymbol(name);
+    }
+    
+    return nullptr;
+}
+
 std::shared_ptr<StructSymbol> Scope::findStructSymbol(const std::string& name) const {
     auto struct_sym = getStructSymbol(name);
     if (struct_sym) return struct_sym;
@@ -355,6 +374,10 @@ void Scope::printScope(int indent) const {
             for (const auto& symbol_in_struct: struct_fields) {
                 std::cout << indent_str << "    " << symbol_in_struct->getIdentifier() << ": " << symbol_in_struct->getType() << std::endl;
             }
+            auto struct_funcs = symbol->getAllAssociatedFunctions();
+            for (const auto& symbol_in_struct: struct_funcs) {
+                std::cout << indent_str << "    " << symbol_in_struct->getIdentifier() << ' ' << symbol_in_struct->getMethodTypeString() << std::endl;
+            }
         }
     }
     
@@ -375,7 +398,7 @@ void Scope::printScope(int indent) const {
             auto func_params = symbol->getParameters();
             for (const auto& sb: func_params) {
                 std::cout << indent_str << "    Param: " << sb->getIdentifier() 
-                          << " Type: " << sb->getType() << std::endl;
+                          << " Type: " << sb->getType() << ' ' << sb->isMut() << std::endl;
             }
         }
     }

@@ -1,8 +1,32 @@
 #include "semantic/type_checker.hpp"
+#include <iostream>
+
+std::pair<std::string, std::string> TypeChecker::getBaseType(const SymbolType& type) {
+    std::string base_type = "", len_type = "";
+    size_t pos = 0;
+    while (pos < type.length() && type[pos] == '[') {
+        len_type += "[";
+        pos++;
+    }
+    while (pos < type.length() && type[pos] != ']') {
+        base_type += type[pos];
+        pos++;
+    }
+    while (pos < type.length()) {
+        len_type += type[pos];
+        pos++;
+    }
+    return std::make_pair(base_type, len_type);
+}
 
 bool TypeChecker::canAssign(SymbolType var_type, SymbolType expr_type) {
-    if (var_type == expr_type) return true;
-    if ((var_type == "i32" || var_type == "u32" || var_type == "isize" || var_type == "usize") && expr_type == "integer") return true;
+    var_type = autoDereference(var_type), expr_type = autoDereference(expr_type);
+    auto res1 = getBaseType(var_type), res2 = getBaseType(expr_type);
+    if (res1 == res2) return true;
+    if (((res1.first == "i32" || res1.first == "u32" || res1.first == "isize" || res1.first == "usize") && res2.first == "integer") && (res1.second == res2.second)) return true;
+    if (((res1.first == "usize" && res2.first == "u32") || (res1.first == "u32" && res2.first == "usize")) && (res1.second == res2.second)) return true;
+    if (((res1.first == "isize" && res2.first == "i32") || (res1.first == "i32" && res2.first == "isize")) && (res1.second == res2.second)) return true;
+    if (res2.first == "!") return true;
     return false;
 }
 
@@ -18,16 +42,23 @@ bool TypeChecker::isIntegerType(const SymbolType& type) {
 }
 
 TypeChecker::TypeChecker(std::shared_ptr<Scope> root_scope) {
+    exit_num = 0;
     this->root_scope = root_scope;
+    this->current_scope = root_scope;
 }
 
 void TypeChecker::visit(Crate& node) {
+    std::cout << "[TypeChecker] Entering Crate node" << std::endl;
     for (auto item: node.items) {
         item->accept(this);
+    }
+    if (exit_num > 1) {
+        throw std::runtime_error("Semantic: more than 1 exit!");
     }
 }
 
 void TypeChecker::visit(Item& node) {
+    std::cout << "[TypeChecker] Entering Item node" << std::endl;
     if (node.item) {
         node.item->accept(this);
     }
@@ -35,6 +66,7 @@ void TypeChecker::visit(Item& node) {
 }
 
 void TypeChecker::visit(Function& node) {
+    std::cout << "[TypeChecker] Entering Function node: " << node.identifier << std::endl;
     auto prev_scope = current_scope;
     current_scope = current_scope->getChild();
 
@@ -43,10 +75,60 @@ void TypeChecker::visit(Function& node) {
     for (size_t _ = 0; _ < func_params.size(); ++_) {
         current_scope->addVariable(func_params[_]->getIdentifier(), func_params[_]->getType(), func_params[_]->isMut());
     }
+    if (func_symbol->getMethodType() == MethodType::SELF_VALUE || func_symbol->getMethodType() == MethodType::SELF_REF) {
+        auto self_type = current_scope->getImplSelfType();
+        current_scope->addVariable("self", self_type, false);
+    } else if (func_symbol->getMethodType() == MethodType::SELF_MUT_VALUE || func_symbol->getMethodType() == MethodType::SELF_MUT_REF) {
+        auto self_type = current_scope->getImplSelfType();
+        current_scope->addVariable("self", self_type, true);
+    } 
+
+    if (node.identifier == "main" && func_symbol->getReturnType() != "()") {
+        throw std::runtime_error("Semantic: Function main should return ()");
+    }
 
     if (node.block_expression && current_scope) {
         node.block_expression->accept(this);
     }
+
+    if (node.identifier == "main") {
+        auto block_expr = node.block_expression;
+        if (!block_expr || !block_expr->statements) {
+            throw std::runtime_error("Semantic: exit missing0");
+        }
+        auto stmts = block_expr->statements->statements;
+        if (stmts.empty()) {
+            throw std::runtime_error("Semantic: exit wrong place1");
+        }
+        std::shared_ptr<ExpressionWithoutBlock> expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(stmts.back());
+        if (!expr_without_block) {
+            auto stmt = std::dynamic_pointer_cast<Statement>(stmts.back());
+            auto expr_stmt = std::dynamic_pointer_cast<ExpressionStatement>(stmt->child);
+            expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(expr_stmt->child);
+            if (!expr_without_block) {
+                throw std::runtime_error("Semantic: exit wrong place2");
+            }
+        }
+        auto call_expr = std::dynamic_pointer_cast<CallExpression>(expr_without_block->child);
+        if (!call_expr) {
+            throw std::runtime_error("Semantic: exit wrong place3");
+        }
+        auto path_expr = std::dynamic_pointer_cast<PathExpression>(call_expr->expression);
+        auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr->path_in_expression);
+        auto identifier = path_in_expr->segment1->identifier;
+        if (identifier != "exit") {
+            throw std::runtime_error("Semantic: exit missing!");
+        }
+    }
+
+    if (node.block_expression) {
+        auto return_type = node.block_expression->type;
+        // std::cout << func_symbol->getReturnType() << ' ' << return_type << ' ' << node.block_expression->is_last_stmt_return << std::endl;
+        if (!canAssign(func_symbol->getReturnType(), return_type) && (!node.block_expression->is_last_stmt_return)) {
+            throw std::runtime_error("Semantic: Function return type not match " + func_symbol->getIdentifier());
+        }
+    }
+
     current_scope = prev_scope;
     current_scope->nextChild();
 }
@@ -70,9 +152,11 @@ void TypeChecker::visit(ConstantItem& node) {
 }
 
 void TypeChecker::visit(Trait& node) {
+    std::cout << "[TypeChecker] Entering Trait node" << std::endl;
     auto prev_scope = current_scope;
+
     current_scope = current_scope->getChild();
-    
+    std::cout << "GOOD" << std::endl;
     for (auto& item : node.associated_item) {
         if (item) {
             item->accept(this);
@@ -120,6 +204,7 @@ void TypeChecker::visit(TraitImpl& node) {
 }
 
 void TypeChecker::visit(AssociatedItem& node) {
+    std::cout << "[TypeChecker] Entering AssociatedItem node" << std::endl;
     if (node.child) {
         node.child->accept(this);
     }
@@ -213,6 +298,7 @@ void TypeChecker::visit(Statement& node) {
 }
 
 void TypeChecker::visit(LetStatement& node) {
+    std::cout << "[TypeChecker] Entering LetStatement node" << std::endl;
     if (node.type) {
         node.type->accept(this);
     }
@@ -224,6 +310,7 @@ void TypeChecker::visit(LetStatement& node) {
     }
     auto var_type = typeToString_(current_scope, node.type);
     auto expr_type = node.expression->type;
+    std::cout << "[TypeChecker] LetStatement: var_type = " << var_type << ", expr_type = " << expr_type << std::endl;
     if (!canAssign(var_type, expr_type)) {
         throw std::runtime_error("Semantic: Type Error in LetStmt");
     }
@@ -233,6 +320,7 @@ void TypeChecker::visit(LetStatement& node) {
             auto var_identifier = identifier_patther->identifier;
             auto var_mutability = identifier_patther->is_mutable;
             current_scope->addVariable(var_identifier, var_type, var_mutability);
+            std::cout << "[TypeChecker] LetStatement: added variable " << var_identifier << " with type " << var_type << std::endl;
         }
     }
     static_cast<ASTNode&>(node).type = "()";
@@ -242,6 +330,7 @@ void TypeChecker::visit(ExpressionStatement& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.mutability = node.child->mutability;
     node.type = node.child->type;
 }
 
@@ -255,6 +344,7 @@ void TypeChecker::visit(Statements& node) {
 
 // 表达式类节点
 void TypeChecker::visit(Expression& node) {
+    std::cout << "[TypeChecker] Entering Expression node" << std::endl;
     if (node.child) {
         node.child->accept(this);
     }
@@ -323,22 +413,44 @@ void TypeChecker::visit(BoolLiteral& node) {
 
 // 路径和访问表达式
 void TypeChecker::visit(PathExpression& node) {
+    std::cout << "[TypeChecker] Entering PathExpr node" << std::endl;
     if (node.path_in_expression) {
         node.path_in_expression->accept(this);
     }
-    // PathExpression 的类型就是变量的类型
-    if (node.path_in_expression && node.path_in_expression->segment1) {
+    if (node.path_in_expression && node.path_in_expression->segment2) {
+        auto struct_name = node.path_in_expression->segment1->identifier;
+        if (struct_name == "Self") {
+            struct_name = current_scope->getImplSelfType();
+        }
+        if (auto struct_symbol = current_scope->findStructSymbol(struct_name)) {
+            if (auto const_symbol = struct_symbol->getAssociatedConst(node.path_in_expression->segment2->identifier)) {
+                node.type = const_symbol->getType();
+            }
+        } else if (current_scope->enumSymbolExists(struct_name)) {
+            node.type = struct_name;
+        }
+    } else if (node.path_in_expression && node.path_in_expression->segment1) {
         auto var_name = node.path_in_expression->segment1->identifier;
-        node.type = current_scope->findVariableType(var_name);
+        if (current_scope->constSymbolExists(var_name)) {
+            auto const_symbol = current_scope->findConstSymbol(var_name);
+            node.type = const_symbol->getType();
+        } else if (current_scope->variableExists(var_name)) {
+            node.type = current_scope->findVariableType(var_name);
+        } else {
+            node.type = node.path_in_expression->type;
+        }
+        node.mutability = node.path_in_expression->mutability;
     }
 }
 
 void TypeChecker::visit(FieldExpression& node) {
+    std::cout << "[TypeChecker] Entering FieldExpression node" << std::endl;
     if (node.expression) {
         node.expression->accept(this);
     }
-    auto var_type = current_scope->findVariableType(node.expression->type);
-    auto struct_symbol = current_scope->findStructSymbol(var_type);
+    auto deref_type = autoDereference(node.expression->type);
+    std::shared_ptr<StructSymbol> struct_symbol;
+    struct_symbol = current_scope->findStructSymbol(deref_type);
     if (!struct_symbol) {
         throw std::runtime_error("Semantic: FieldExpr struct not found");
     }
@@ -346,6 +458,7 @@ void TypeChecker::visit(FieldExpression& node) {
         throw std::runtime_error("Semantic: FieldExpr field not found");
     }
     node.mutability = node.expression->mutability;
+    // std::cout << node.expression->mutability << std::endl;
     node.type = struct_symbol->getField(node.identifier)->getType();
 }
 
@@ -396,7 +509,8 @@ void TypeChecker::visit(BorrowExpression& node) {
         ref_prefix = "&&";
     }
     if (node.is_mutable) {
-        ref_prefix += "mut ";
+        // ref_prefix += "mut ";
+        node.mutability = true;
     }
     
     // 借用表达式的类型为 &T 或 &mut T
@@ -419,12 +533,15 @@ void TypeChecker::visit(DereferenceExpression& node) {
 }
 
 void TypeChecker::visit(BinaryExpression& node) {
+    std::cout << "[TypeChecker] Entering BinaryExpression node" << std::endl;
     if (node.lhs) {
         node.lhs->accept(this);
     }
     if (node.rhs) {
         node.rhs->accept(this);
     }
+    
+    std::cout << "[TypeChecker] BinaryExpression: LHS type = " << node.lhs->type << ", RHS type = " << node.rhs->type << std::endl;
     
     // 根据不同的 binary_type 进行特定的类型检查
     switch (node.binary_type) {
@@ -434,7 +551,7 @@ void TypeChecker::visit(BinaryExpression& node) {
                 throw std::runtime_error("Semantic: Arithmetic operators cannot be applied to bool type");
             }
             // 处理字符串连接
-            if (node.lhs->type == "str" && node.rhs->type == "str") {
+            if (node.lhs->type == "String" && node.lhs->mutability && node.rhs->type == "str") {
                 node.type = "str";
             } else if (node.lhs->type == "str" || node.rhs->type == "str") {
                 throw std::runtime_error("Semantic: String concatenation requires both operands to be string type");
@@ -524,6 +641,8 @@ void TypeChecker::visit(BinaryExpression& node) {
         default:
             throw std::runtime_error("Semantic: BinaryExpression unknown binary type");
     }
+    
+    std::cout << "[TypeChecker] BinaryExpression result type: " << node.type << std::endl;
 }
 
 void TypeChecker::visit(AssignmentExpression& node) {
@@ -673,34 +792,42 @@ void TypeChecker::visit(TypeCastExpression& node) {
 }
 
 void TypeChecker::checkFunctionParams(const std::vector<std::shared_ptr<Expression>>& call_params, const std::vector<std::shared_ptr<VariableSymbol>>& func_params) {
+    // std::cout << call_params.size() << ' ' << func_params.size() << std::endl;
     if (call_params.size() != func_params.size()) {
         throw std::runtime_error("Semantic: CallExpr function param number not match");
     }
     for (size_t _ = 0; _ < call_params.size(); ++_) {
-        if (call_params[_]->type != func_params[_]->getType()) {
+        if (!canAssign(func_params[_]->getType(), call_params[_]->type)) {
+            std::cout << func_params[_]->getType() << ' ' << call_params[_]->type << std::endl;
             throw std::runtime_error("Semantic: CallExpr function param type not match");
         }
         if (func_params[_]->isMut()) {
-            if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(func_params[_])) {
-                if (auto path_ident_seg = std::dynamic_pointer_cast<PathIdentSegment>(path_expr)) {
-                    auto identifier = path_ident_seg->identifier;
+            if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(call_params[_]->child)) {
+                if (auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr->path_in_expression)) {
+                    auto identifier = path_in_expr->segment1->identifier;
                     if (!current_scope->findVariableMutable(identifier)) {
-                        throw std::runtime_error("Semantic: CallExpr function param mutability not match");
+                        std::cout << identifier << std::endl;
+                        throw std::runtime_error("Semantic: CallExpr function param mutability not match1");
                     }
                 } else {
-                    throw std::runtime_error("Semantic: CallExpr function param mutability not match");
+                    throw std::runtime_error("Semantic: CallExpr function param mutability not match2");
                 }
             } else {
-                throw std::runtime_error("Semantic: CallExpr function param mutability not match");
+                if (auto borrow_expr = std::dynamic_pointer_cast<BorrowExpression>(call_params[_]->child)) {
+                    if (!borrow_expr->is_mutable) {
+                        throw std::runtime_error("Semantic: CallExpr function param mutability not match3");
+                    }
+                } else {
+                    throw std::runtime_error("Semantic: CallExpr function param mutability not match4");
+                }
             }
-        } else {
-            throw std::runtime_error("Semantic: CallExpr function param mutability not match");
         }
     }
 }
 
 // 调用和索引表达式
 void TypeChecker::visit(CallExpression& node) {
+    std::cout << "[TypeChecker] Entering CallExpression node" << std::endl;
     if (node.expression) {
         node.expression->accept(this);
     }
@@ -708,21 +835,33 @@ void TypeChecker::visit(CallExpression& node) {
         node.call_params->accept(this);
     }
     if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.expression)) {
-        auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr);
+        // std::cout << "GOOD" << std::endl;
+        auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr->path_in_expression);
+        // std::cout << "GOOD" << std::endl;
+        // std::cout << (path_in_expr == nullptr) << std::endl;
         if (path_in_expr->segment2) {
-            auto var_identifier = path_in_expr->segment1->identifier;
-            auto var_type = autoDereference(current_scope->findVariableType(var_identifier));
-            auto struct_symbol = current_scope->findStructSymbol(var_type);
+            // std::cout << "?" << std::endl;
+            auto struct_identifier = path_in_expr->segment1->identifier;
+            // std::cout << struct_identifier << std::endl;
+            auto struct_symbol = current_scope->findStructSymbol(struct_identifier);
             if (struct_symbol) {
+                // std::cout << path_in_expr->segment2->identifier << std::endl;
                 auto func_symbol = struct_symbol->getAssociatedFunction(path_in_expr->segment2->identifier);
                 if (func_symbol) {
                     if (func_symbol->isMethod()) {
                         throw std::runtime_error("Semantic: CallExpr function is a method");
-                    }                    
-                    auto call_params = node.call_params->expressions;
+                    }
                     auto func_params = func_symbol->getParameters();
-                    checkFunctionParams(call_params, func_params);
+                    if (node.call_params) {
+                        auto call_params = node.call_params->expressions;
+                        checkFunctionParams(call_params, func_params);
+                    } else {
+                        if (!func_params.empty()) {
+                            throw std::runtime_error("Semantic: CallExpr param number not match");
+                        }
+                    }
                     node.type = func_symbol->getReturnType();
+                    std::cout << "[TypeChecker] CallExpression to associated function: " << path_in_expr->segment2->identifier << ", return type: " << node.type << std::endl;
                 } else {
                     throw std::runtime_error("Semantic: CallExpr function not found");
                 }
@@ -730,15 +869,38 @@ void TypeChecker::visit(CallExpression& node) {
                 throw std::runtime_error("Semantic: CallExpr struct not found");
             }
         } else {
+            // std::cout << "!" << std::endl;
+            auto identifier = path_in_expr->segment1->identifier;
+            if (identifier == "exit") {
+                exit_num++;
+                // std::cout << "?" << std::endl;
+                auto scope = current_scope;
+                while (scope && scope->getType() != ScopeType::FUNCTION) {
+                    scope = scope->getParent();
+                }
+                if (!scope) {
+                    throw std::runtime_error("Semantic: exit wrong place");
+                }
+                if (scope->getSelfType() != "main") {
+                    throw std::runtime_error("Semantic: exit wrong place");
+                }
+            }
             auto func_symbol = current_scope->findFuncSymbol(path_in_expr->segment1->identifier);
             if (func_symbol) {
                 if (func_symbol->isMethod()) {
                     throw std::runtime_error("Semantic: CallExpr function is a method");
                 }
-                auto call_params = node.call_params->expressions;
                 auto func_params = func_symbol->getParameters();
-                checkFunctionParams(call_params, func_params);
+                if (node.call_params) {
+                    auto call_params = node.call_params->expressions;
+                    checkFunctionParams(call_params, func_params);
+                } else {
+                    if (!func_params.empty()) {
+                        throw std::runtime_error("Semantic: CallExpr param number not match");
+                    }
+                }
                 node.type = func_symbol->getReturnType();
+                std::cout << "[TypeChecker] CallExpression to function: " << path_in_expr->segment1->identifier << ", return type: " << node.type << std::endl;
             } else {
                 throw std::runtime_error("Semantic: CallExpr function not found");
             }
@@ -749,40 +911,65 @@ void TypeChecker::visit(CallExpression& node) {
 }
 
 void TypeChecker::visit(MethodCallExpression& node) {
+    std::cout << "[TypeChecker] Entering MethodCallExpression node" << std::endl;
     if (node.expression) {
         node.expression->accept(this);
     }
     if (node.call_params) {
         node.call_params->accept(this);
     }
+    std::string var_identifier, var_type;
     if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.expression)) {
-        auto var_identifier = path_expr->path_in_expression->segment1->identifier;
-        auto var_type = autoDereference(current_scope->findVariableType(var_identifier));
-        auto struct_symbol = current_scope->findStructSymbol(var_type);
-        if (struct_symbol) {
-            auto func_symbol = struct_symbol->getAssociatedFunction(node.path_ident_segment->identifier);
-            if (func_symbol) {
-                if (!func_symbol->isMethod()) {
-                    throw std::runtime_error("Semantic: MethodCallExpr function is not a method");
-                }
-                auto method_type = func_symbol->getMethodType();
-                if (method_type == MethodType::SELF_MUT_REF || method_type == MethodType::SELF_MUT_VALUE) {
-                    if (!current_scope->findVariableMutable(var_identifier)) {
-                        throw std::runtime_error("Semantic: MethodCallExpr not mutable");
-                    }
-                }
-                auto call_params = node.call_params->expressions;
-                auto func_params = func_symbol->getParameters();
-                checkFunctionParams(call_params, func_params);
-                node.type = func_symbol->getReturnType();
-            } else {
-                throw std::runtime_error("Semantic: MethodCallExpr function not found");
+        var_identifier = path_expr->path_in_expression->segment1->identifier;
+    }
+
+    var_type = autoDereference(node.expression->type);
+    if (var_type == "integer") {
+        var_type = "u32";
+    }
+
+    if (node.path_ident_segment->identifier == "len") {
+        if (var_type[0] == '[') {
+            if (node.call_params != nullptr) {
+                throw std::runtime_error("Semantic: MethodCallExpr param number not match");
             }
+            node.type = "u32";
+            return;
+        }
+    }
+    // std::cout << var_type << std::endl;
+    auto struct_symbol = current_scope->findStructSymbol(var_type);
+    // std::cout << struct_symbol->getIdentifier() << std::endl;
+    if (struct_symbol) {
+        auto func_symbol = struct_symbol->getMethod(node.path_ident_segment->identifier);
+        // std::cout << node.path_ident_segment->identifier << std::endl;
+        if (func_symbol) {
+            if (!func_symbol->isMethod()) {
+                throw std::runtime_error("Semantic: MethodCallExpr function is not a method");
+            }
+            auto method_type = func_symbol->getMethodType();
+            // std::cout << func_symbol->getMethodTypeString() << std::endl;
+            if (method_type == MethodType::SELF_MUT_REF || method_type == MethodType::SELF_MUT_VALUE) {
+                if (!current_scope->findVariableMutable(var_identifier)) {
+                    throw std::runtime_error("Semantic: MethodCallExpr not mutable");
+                }
+            }
+            auto func_params = func_symbol->getParameters();
+            if (node.call_params) {
+                auto call_params = node.call_params->expressions;
+                checkFunctionParams(call_params, func_params);
+            } else {
+                if (!func_params.empty()) {
+                    throw std::runtime_error("Semantic: MethodCallExpr param number not match");
+                }
+            }
+            node.type = func_symbol->getReturnType();
+            std::cout << "[TypeChecker] MethodCallExpression to method: " << node.path_ident_segment->identifier << " on type " << var_type << ", return type: " << node.type << std::endl;
         } else {
-            throw std::runtime_error("Semantic: MethodCallExpr struct not found");
+            throw std::runtime_error("Semantic: MethodCallExpr function not found");
         }
     } else {
-        throw std::runtime_error("Semantic: MethodCallExpr not struct");
+        throw std::runtime_error("Semantic: MethodCallExpr struct not found");
     }
 }
 
@@ -796,8 +983,9 @@ void TypeChecker::visit(IndexExpression& node) {
     if (node.index_expression->type != "integer" && node.index_expression->type != "usize") {
         throw std::runtime_error("Semantic: IndexExpr index not usize");
     }
-    auto arr_type = node.base_expression->type;
+    auto arr_type = autoDereference(node.base_expression->type);
     if (arr_type[0] != '[') {
+        std::cout << arr_type << std::endl;
         throw std::runtime_error("Semantic: IndexExpr not array");
     }
     auto type = arr_type;
@@ -825,7 +1013,8 @@ void TypeChecker::visit(StructExpression& node) {
         auto identifier = struct_expr_fields[_]->identifier;
         auto type = struct_expr_fields[_]->type;
         auto struct_field = struct_symbol->getField(identifier);
-        if (struct_field->getType() != type) {
+        if (!canAssign(struct_field->getType(), type)) {
+            std::cout << struct_field->getType() << ' ' << type << std::endl;
             throw std::runtime_error("Semantic: StructExpression field type not match");
         }
     }
@@ -848,6 +1037,7 @@ void TypeChecker::visit(GroupedExpression& node) {
 
 // 控制流表达式
 void TypeChecker::visit(BlockExpression& node) {
+    std::cout << "[TypeChecker] Entering BlockExpression node" << std::endl;
     // BlockExpression 会创建新的 scope，需要进入
     auto prev_scope = current_scope;
     current_scope = current_scope->getChild();
@@ -856,6 +1046,7 @@ void TypeChecker::visit(BlockExpression& node) {
         node.statements->accept(this);
     }
 
+    std::cout << "[TypeChecker] checking BlockExpression node" << std::endl;
     // 实现尾表达式检测和类型推断
     if (node.statements && !node.statements->statements.empty()) {
         // 检测尾表达式
@@ -863,12 +1054,24 @@ void TypeChecker::visit(BlockExpression& node) {
         
         // 从最后一个语句开始向前查找尾表达式
         auto it = node.statements->statements.rbegin();
-        auto stmt = *it;
+
         // 检查是否为 ExpressionStatement
-        if (auto expr_stmt = std::dynamic_pointer_cast<ExpressionStatement>(stmt)) {
-            if (!expr_stmt->has_semi) {
-                // 没有分号的 ExpressionStatement 是尾表达式
-                tail_expression = expr_stmt->child;
+        if (auto stmt = std::dynamic_pointer_cast<Statement>(*it)) {
+            if (auto expr_stmt = std::dynamic_pointer_cast<ExpressionStatement>(stmt->child)) {
+                if (!expr_stmt->has_semi) {
+                    // 没有分号的 ExpressionStatement 是尾表达式
+                    tail_expression = expr_stmt->child;
+                }
+                if (auto expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(expr_stmt->child)) {
+                    if (auto return_expr = std::dynamic_pointer_cast<ReturnExpression>(expr_without_block->child)) {
+                        node.is_last_stmt_return = true;
+                    }
+                }
+            }
+        } else if (auto expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(*it)) {
+            tail_expression = expr_without_block;
+            if (auto return_expr = std::dynamic_pointer_cast<ReturnExpression>(expr_without_block->child)) {
+                node.is_last_stmt_return = true;
             }
         }
         
@@ -897,11 +1100,13 @@ void TypeChecker::visit(BlockExpression& node) {
         node.type = "()";
     }
     
+    std::cout << "[TypeChecker] BlockExpression type: " << node.type << std::endl;
     current_scope = prev_scope;
     current_scope->nextChild();
 }
 
 void TypeChecker::visit(IfExpression& node) {
+    std::cout << "[TypeChecker] Entering IfExpression node" << std::endl;
     if (node.condition) {
         node.condition->accept(this);
     }
@@ -917,47 +1122,52 @@ void TypeChecker::visit(IfExpression& node) {
     if (node.else_branch) {
         node.else_branch->accept(this);
     }
-    
-    // 类型推断逻辑
-    std::string then_type = node.then_block ? node.then_block->type : "()";
-    std::string else_type = node.else_branch ? node.else_branch->type : "()";
-    
-    // 处理 never 类型（!）
-    bool then_is_never = (then_type == "!");
-    bool else_is_never = (else_type == "!");
-    
-    if (then_is_never && else_is_never) {
-        // 两个分支都是 never，结果是 never
-        node.type = "!";
-    } else if (then_is_never) {
-        // then 分支是 never，结果是 else 分支类型
-        node.type = else_type;
-    } else if (else_is_never) {
-        // else 分支是 never，结果是 then 分支类型
-        node.type = then_type;
+
+    if (!node.else_branch) {
+        node.type = "()";
     } else {
-        // 两个分支都不是 never，需要类型兼容
-        bool types_compatible = false;
-        
-        // 如果类型相同，则兼容
-        if (then_type == else_type) {
-            types_compatible = true;
+        // 类型推断逻辑
+        std::string then_type = node.then_block ? node.then_block->type : "()";
+        std::string else_type = node.else_branch ? node.else_branch->type : "()";
+
+        // 处理 never 类型（!）
+        bool then_is_never = (then_type == "!");
+        bool else_is_never = (else_type == "!");
+
+        if (then_is_never && else_is_never) {
+            // 两个分支都是 never，结果是 never
+            node.type = "!";
+        } else if (then_is_never) {
+            // then 分支是 never，结果是 else 分支类型
+            node.type = else_type;
+        } else if (else_is_never) {
+            // else 分支是 never，结果是 then 分支类型
             node.type = then_type;
-        }
-        // 处理 integer 类型推断
-        else if (then_type == "integer" && isIntegerType(else_type)) {
-            types_compatible = true;
-            node.type = else_type; // 使用具体类型
-        }
-        else if (else_type == "integer" && isIntegerType(then_type)) {
-            types_compatible = true;
-            node.type = then_type; // 使用具体类型
-        }
-        
-        if (!types_compatible) {
-            throw std::runtime_error("Semantic: If expression branches have incompatible types: then branch is " + then_type + ", else branch is " + else_type);
+        } else {
+            // 两个分支都不是 never，需要类型兼容
+            bool types_compatible = false;
+            
+            // 如果类型相同，则兼容
+            if (then_type == else_type) {
+                types_compatible = true;
+                node.type = then_type;
+            }
+            // 处理 integer 类型推断
+            else if (then_type == "integer" && isIntegerType(else_type)) {
+                types_compatible = true;
+                node.type = else_type; // 使用具体类型
+            }
+            else if (else_type == "integer" && isIntegerType(then_type)) {
+                types_compatible = true;
+                node.type = then_type; // 使用具体类型
+            }
+            
+            if (!types_compatible) {
+                throw std::runtime_error("Semantic: If expression branches have incompatible types: then branch is " + then_type + ", else branch is " + else_type);
+            }
         }
     }
+    std::cout << "[TypeChecker] IfExpression type: " << node.type << std::endl;
 }
 
 void TypeChecker::visit(LoopExpression& node) {
@@ -1111,7 +1321,7 @@ void TypeChecker::visit(ReturnExpression& node) {
                 // 检查返回表达式类型是否与函数返回类型匹配
                 if (node.expression) {
                     auto expr_type = node.expression->type;
-                    if (return_type != expr_type) {
+                    if (!canAssign(return_type, expr_type)) {
                         throw std::runtime_error("Semantic: Return type mismatch: expected " + return_type + ", got " + expr_type);
                     }
                 } else {
@@ -1156,9 +1366,11 @@ void TypeChecker::visit(ArrayElements& node) {
     } else {
         SymbolType base_type = node.expressions[0]->type;
         for (auto & expr : node.expressions) {
-            if (base_type == "integer" && (expr->type == "i32" || expr->type == "u32" || expr->type == "isize" || expr->type == "usize")) {
+            if (canAssign(expr->type, base_type)) {
                 base_type = expr->type;
-            } else if (base_type != expr->type) {
+            } else if (canAssign(base_type, expr->type)) {
+                
+            } else {
                 throw std::runtime_error("Semantic: Array expr type not match");
             }
         }
@@ -1179,6 +1391,7 @@ void TypeChecker::visit(StructExprField& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    node.type = node.expression->type;
 }
 
 void TypeChecker::visit(CallParams& node) {
@@ -1239,6 +1452,7 @@ void TypeChecker::visit(UnitType& node) {
 
 // 路径类节点
 void TypeChecker::visit(PathInExpression& node) {
+    std::cout << "[TypeChecker] Entering PathInExpr node" << std::endl;
     if (node.segment1) {
         node.segment1->accept(this);
     }
@@ -1246,17 +1460,32 @@ void TypeChecker::visit(PathInExpression& node) {
         node.segment2->accept(this);
         node.type = node.segment1->type + "::" + node.segment2->type;
     } else {
+        node.mutability = node.segment1->mutability;
         node.type = node.segment1->type;
     }
 }
 
 void TypeChecker::visit(PathIdentSegment& node) {
+    std::cout << "[TypeChecker] Entering PathIdentSegment node" << std::endl;
     // PathIdentSegment 不包含类型信息，无需类型检查
     if (node.path_type == 0) {
-        node.type = node.identifier;
+        if (current_scope->constSymbolExists(node.identifier)) {
+            auto const_symbol = current_scope->findConstSymbol(node.identifier);
+            node.type = const_symbol->getType();
+        } else if (current_scope->variableExists(node.identifier)) {
+            node.mutability = current_scope->findVariableMutable(node.identifier);
+            node.type = current_scope->findVariableType(node.identifier);
+        } else {
+            node.type = node.identifier;
+        }
     } else if (node.path_type == 1) {
-        node.type = "Self";
+        if (current_scope->variableExists("self")) {
+            node.mutability = current_scope->findVariableMutable(node.identifier);
+            node.type = current_scope->findVariableType(node.identifier);
+        } else {
+            throw std::runtime_error("Semantic: PathIdentSegment unexpected self");
+        }
     } else {
-        node.type = "self";
+        node.type = current_scope->getImplSelfType();
     }
 }

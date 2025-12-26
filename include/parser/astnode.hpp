@@ -629,10 +629,11 @@ public:
 
 class BlockExpression : public Expression {
 public:
+    bool is_last_stmt_return;
     std::shared_ptr<Statements> statements;
 public:
     BlockExpression(std::shared_ptr<Statements> statements)
-        : statements(std::move(statements)) {}
+        : is_last_stmt_return(false), statements(std::move(statements)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

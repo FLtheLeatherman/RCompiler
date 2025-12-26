@@ -54,6 +54,7 @@ public:
     std::string getSelfType();
     void setBreakType(std::string);
     std::string getBreakType();
+    std::string getImplSelfType();
     
     // 作用域层次结构管理
     void addChild(std::shared_ptr<Scope> child);
@@ -101,6 +102,7 @@ public:
     
     // 通用符号查找（在作用域链中查找）
     std::shared_ptr<Symbol> findSymbol(const std::string& name) const;
+    std::shared_ptr<ConstSymbol> findConstSymbol(const std::string& name) const;
     std::shared_ptr<StructSymbol> findStructSymbol(const std::string& name) const;
     std::shared_ptr<EnumSymbol> findEnumSymbol(const std::string& name) const;
     std::shared_ptr<FuncSymbol> findFuncSymbol(const std::string& name) const;

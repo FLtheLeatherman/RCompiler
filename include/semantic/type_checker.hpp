@@ -18,6 +18,9 @@ private:
     bool canAssign(SymbolType var_type, SymbolType expr_type);
     SymbolType autoDereference(SymbolType type);
     bool isIntegerType(const SymbolType& type);
+    std::pair<std::string, std::string> getBaseType(const SymbolType& type);
+
+    int exit_num;
 
 public:
     TypeChecker(std::shared_ptr<Scope> root_scope);
