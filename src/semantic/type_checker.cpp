@@ -595,7 +595,7 @@ void TypeChecker::visit(BinaryExpression& node) {
         node.rhs->accept(this);
     }
     
-    std::cout << "[TypeChecker] BinaryExpression: LHS type = " << node.lhs->type << ", RHS type = " << node.rhs->type << std::endl;
+    std::cout << "[TypeChecker] BinaryExpression: LHS type = " << node.lhs->type << ", RHS type = " << node.rhs->type << ' ' << node.binary_type << std::endl;
 
     if (node.lhs->type == "integer" && (node.rhs->type == "i32" || node.rhs->type == "isize")) {
         if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(node.lhs)) {
