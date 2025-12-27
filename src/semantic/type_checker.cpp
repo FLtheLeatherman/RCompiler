@@ -73,7 +73,7 @@ void TypeChecker::visit(Function& node) {
     auto func_symbol = prev_scope->getFuncSymbol(node.identifier);
     auto func_params = func_symbol->getParameters();
     for (size_t _ = 0; _ < func_params.size(); ++_) {
-        current_scope->addVariable(func_params[_]->getIdentifier(), func_params[_]->getType(), func_params[_]->isMut());
+        current_scope->addVariable(func_params[_]->getIdentifier(), func_params[_]->getType(), func_params[_]->getMut() >= 1);
     }
     if (func_symbol->getMethodType() == MethodType::SELF_VALUE || func_symbol->getMethodType() == MethodType::SELF_REF) {
         auto self_type = current_scope->getImplSelfType();
@@ -801,7 +801,7 @@ void TypeChecker::checkFunctionParams(const std::vector<std::shared_ptr<Expressi
             std::cout << func_params[_]->getType() << ' ' << call_params[_]->type << std::endl;
             throw std::runtime_error("Semantic: CallExpr function param type not match");
         }
-        if (func_params[_]->isMut()) {
+        if (func_params[_]->getMut() >= 2) {
             if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(call_params[_]->child)) {
                 if (auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr->path_in_expression)) {
                     auto identifier = path_in_expr->segment1->identifier;

@@ -398,7 +398,7 @@ void Scope::printScope(int indent) const {
             auto func_params = symbol->getParameters();
             for (const auto& sb: func_params) {
                 std::cout << indent_str << "    Param: " << sb->getIdentifier() 
-                          << " Type: " << sb->getType() << ' ' << sb->isMut() << std::endl;
+                          << " Type: " << sb->getType() << ' ' << sb->getMut() << std::endl;
             }
         }
     }

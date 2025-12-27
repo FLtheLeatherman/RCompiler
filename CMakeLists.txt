@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-O3)
 add_compile_options(-Ofast)
 
+find_package(Boost 1.83.0 REQUIRED COMPONENTS regex)
+
 include_directories(include)
 
 add_executable(code

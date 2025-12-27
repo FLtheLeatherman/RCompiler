@@ -36,7 +36,7 @@ bool ConstSymbol::hasValue() const {
 }
 
 // VariableSymbol 类实现
-VariableSymbol::VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref, bool is_mut)
+VariableSymbol::VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref, int is_mut)
     : Symbol(type), identifier(identifier), is_ref(is_ref), is_mut(is_mut) {}
 
 std::string VariableSymbol::getIdentifier() const {
@@ -47,7 +47,7 @@ bool VariableSymbol::isRef() const {
     return is_ref;
 }
 
-bool VariableSymbol::isMut() const {
+int VariableSymbol::getMut() const {
     return is_mut;
 }
 

@@ -64,7 +64,7 @@ void ConstEvaluator::visit(StructStruct& node) {
             auto field_symbol = struct_symbol->getField(struct_field->identifier);
             struct_symbol->eraseField(struct_field->identifier);
             struct_symbol->addField(std::make_shared<VariableSymbol>(
-                field_symbol->getIdentifier(), arr_type, field_symbol->isRef(), field_symbol->isMut()));
+                field_symbol->getIdentifier(), arr_type, field_symbol->isRef(), field_symbol->getMut()));
         }
     }
     // std::cout << "Struct visit done" << std::endl;

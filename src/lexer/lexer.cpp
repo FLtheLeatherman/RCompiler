@@ -32,13 +32,13 @@ std::vector<std::pair<Token, std::string>> Lexer::lex(std::string str) {
         size_t best_len = 0;
         std::pair<Token, std::string> best_match;
         for (auto [token, reg]: patterns) {
-            std::smatch match;
+            boost::smatch match;
             auto sub = str.substr(i);
-            if (std::regex_search(sub, match, reg) && match.position() == 0) {
+            if (boost::regex_search(sub, match, reg) && match.position() == 0) {
                 auto match_str = match.str();
                 if (match_str.size() > best_len) {
                     best_len = match_str.size();
-                    best_match = make_pair(token, match_str);
+                    best_match = std::make_pair(token, match_str);
                 }
             }
         }

@@ -39,12 +39,12 @@ class VariableSymbol : public Symbol {
 private:
     std::string identifier;
     bool is_ref;
-    bool is_mut;
+    int is_mut;
 public:
-    VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref = false, bool is_mut = false);
+    VariableSymbol(const std::string identifier, const SymbolType type, bool is_ref = false, int is_mut = 0);
     std::string getIdentifier() const;
     bool isRef() const;
-    bool isMut() const;
+    int getMut() const;
 };
 
 class StructSymbol : public Symbol {

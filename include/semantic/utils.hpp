@@ -47,7 +47,7 @@ inline std::shared_ptr<VariableSymbol> createVariableSymbolFromPattern(
             is_ref = true;
             is_mut = ref_type->is_mutable;
         }
-        return std::make_shared<VariableSymbol>(ident_pattern->identifier, type_str, is_ref | ident_pattern->is_ref, is_mut | ident_pattern->is_mutable);
+        return std::make_shared<VariableSymbol>(ident_pattern->identifier, type_str, is_ref | ident_pattern->is_ref, is_mut * 2 + ident_pattern->is_mutable);
     } else if (auto ref_pattern = std::dynamic_pointer_cast<ReferencePattern>(pattern->child)) {
         return createVariableSymbolFromPattern(ref_pattern->pattern, type);
     }
