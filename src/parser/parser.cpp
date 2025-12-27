@@ -837,19 +837,28 @@ std::shared_ptr<ExpressionStatement> Parser::parseExpressionStatement() {
     std::shared_ptr<ASTNode> child;
     size_t tmp = pos;
     bool has_semi = false;
-    try {
-        child = parseExpressionWithoutBlock();
-        match(Token::kSemi);
-        has_semi = true;
-    } catch (...) {
-        // std::cerr << "failed ExpressionWithouBlock!" << std::endl;
+    if (peek() == Token::kIf || peek() == Token::kWhile || peek() == Token::kLCurly) {
         pos = tmp;
         child = parseExpressionWithBlock();
         if (peek() == Token::kSemi) {
             consume();
             has_semi = true;
         }
-        // std::cerr << "succeeded ExpressionWithouBlock " << pos << std::endl;
+    } else {
+        try {
+            child = parseExpressionWithoutBlock();
+            match(Token::kSemi);
+            has_semi = true;
+        } catch (...) {
+            // std::cerr << "failed ExpressionWithouBlock!" << std::endl;
+            pos = tmp;
+            child = parseExpressionWithBlock();
+            if (peek() == Token::kSemi) {
+                consume();
+                has_semi = true;
+            }
+            // std::cerr << "succeeded ExpressionWithouBlock " << pos << std::endl;
+        }
     }
     return std::make_shared<ExpressionStatement>(std::move(child), has_semi);
 }

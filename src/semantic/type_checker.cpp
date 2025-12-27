@@ -657,12 +657,25 @@ void TypeChecker::visit(BinaryExpression& node) {
         case BinaryExpression::CARET:       // ^
         case BinaryExpression::AND:         // &
         case BinaryExpression::OR:          // |
+            if (node.lhs->type == "bool" || node.rhs->type == "bool") {
+
+            } else {
+                if (node.lhs->type == node.rhs->type) {
+                    node.type = node.lhs->type;
+                } else if (node.lhs->type == "integer" && (node.rhs->type == "i32" || node.rhs->type == "u32" || node.rhs->type == "isize" || node.rhs->type == "usize")) {
+                    node.type = node.rhs->type;
+                } else if (node.rhs->type == "integer" && (node.lhs->type == "i32" || node.lhs->type == "u32" || node.lhs->type == "isize" || node.lhs->type == "usize")) {
+                    node.type = node.lhs->type;
+                } else {
+                    throw std::runtime_error("Semantic: Bitwise operators require matching integer types");
+                }
+            }
+            break;
         case BinaryExpression::SHL:         // <<
         case BinaryExpression::SHR:         // >>
-            if (node.lhs->type == "bool" || node.rhs->type == "bool") {
-                throw std::runtime_error("Semantic: Bitwise operators cannot be applied to bool type");
+            if (!isIntegerType(node.lhs->type) || !isIntegerType(node.rhs->type)) {
+                throw std::runtime_error("Semantic: Bitwise shift operators require matching integer types");
             }
-            // 处理类型匹配和 integer 类型推断
             if (node.lhs->type == node.rhs->type) {
                 node.type = node.lhs->type;
             } else if (node.lhs->type == "integer" && (node.rhs->type == "i32" || node.rhs->type == "u32" || node.rhs->type == "isize" || node.rhs->type == "usize")) {
@@ -670,7 +683,7 @@ void TypeChecker::visit(BinaryExpression& node) {
             } else if (node.rhs->type == "integer" && (node.lhs->type == "i32" || node.lhs->type == "u32" || node.lhs->type == "isize" || node.lhs->type == "usize")) {
                 node.type = node.lhs->type;
             } else {
-                throw std::runtime_error("Semantic: Bitwise operators require matching integer types");
+                node.type = node.lhs->type;
             }
             break;
             
@@ -921,7 +934,8 @@ void TypeChecker::visit(CallExpression& node) {
                     node.type = func_symbol->getReturnType();
                     std::cout << "[TypeChecker] CallExpression to associated function: " << path_in_expr->segment2->identifier << ", return type: " << node.type << std::endl;
                 } else {
-                    throw std::runtime_error("Semantic: CallExpr function not found");
+                    std::cout << path_in_expr->segment2->identifier << std::endl;
+                    throw std::runtime_error("Semantic: CallExpr function not found2");
                 }
             } else {
                 throw std::runtime_error("Semantic: CallExpr struct not found");
@@ -960,7 +974,8 @@ void TypeChecker::visit(CallExpression& node) {
                 node.type = func_symbol->getReturnType();
                 std::cout << "[TypeChecker] CallExpression to function: " << path_in_expr->segment1->identifier << ", return type: " << node.type << std::endl;
             } else {
-                throw std::runtime_error("Semantic: CallExpr function not found");
+                std::cout << path_in_expr->segment1->identifier << std::endl;
+                throw std::runtime_error("Semantic: CallExpr function not found1");
             }
         }
     } else {
