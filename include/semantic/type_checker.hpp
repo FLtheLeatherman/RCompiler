@@ -19,6 +19,7 @@ private:
     SymbolType autoDereference(SymbolType type);
     bool isIntegerType(const SymbolType& type);
     std::pair<std::string, std::string> getBaseType(const SymbolType& type);
+    void checkIntegerOverflow(std::string, int);
 
     int exit_num;
 

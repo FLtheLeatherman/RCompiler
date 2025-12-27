@@ -58,6 +58,20 @@ std::string Scope::getImplSelfType() {
     return "";
 }
 
+void Scope::setHasBreak(bool has_break) {
+    this->has_break = has_break;
+}
+bool Scope::hasBreak() {
+    return has_break;
+}
+
+void Scope::setHasReturn(bool has_return) {
+    this->has_return = has_return;
+}
+bool Scope::hasReturn() {
+    return has_return;
+}
+
 // 作用域层次结构管理
 void Scope::addChild(std::shared_ptr<Scope> child) {
     if (child) {
@@ -135,6 +149,9 @@ const std::unordered_map<std::string, std::shared_ptr<EnumSymbol>>& Scope::getEn
 
 // 函数符号管理
 void Scope::addFuncSymbol(const std::string& name, std::shared_ptr<FuncSymbol> symbol) {
+    if (func_symbols.find(name) != func_symbols.end()) {
+        throw std::runtime_error("Semantic: function " + name + " redefinition");
+    }
     func_symbols[name] = symbol;
 }
 

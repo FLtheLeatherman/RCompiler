@@ -641,10 +641,11 @@ public:
 
 class LoopExpression : public Expression {
 public:
+    bool is_last_stmt_return;
     std::shared_ptr<ASTNode> child; // InfiniteLoopExpression or PredicateLoopExpression
 public:
     LoopExpression(std::shared_ptr<ASTNode> child)
-        : child(std::move(child)) {}
+        : is_last_stmt_return(false), child(std::move(child)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }
@@ -652,10 +653,11 @@ public:
 
 class InfiniteLoopExpression : public Expression {
 public:
+    bool is_last_stmt_return;
     std::shared_ptr<BlockExpression> block_expression;
 public:
     InfiniteLoopExpression(std::shared_ptr<BlockExpression> block_expression)
-        : block_expression(std::move(block_expression)) {}
+        : is_last_stmt_return(false), block_expression(std::move(block_expression)) {}
     void accept(ASTVisitor* visitor) override {
         visitor->visit(*this);
     }

@@ -135,9 +135,7 @@ int Parser::getTokenRightBP(Token token) {
 }
 
 std::shared_ptr<ASTNode> Parser::parsePrattPrefix() {
-    // std::cerr << "parsePrattPrefix:" << std::endl;
     Token token = peek();
-    // std::cerr << tokenToString(token) << std::endl;
     
     switch (token) {
         // Control flow expressions
@@ -1723,7 +1721,7 @@ std::shared_ptr<DereferenceExpression> Parser::parseDereferenceExpression() {
     }
     
     consume();
-    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenLeftBP(Token::kStar)));
+    auto expression = std::dynamic_pointer_cast<Expression>(parsePrattExpression(getTokenUnaryBP(Token::kStar)));
     
     return std::make_shared<DereferenceExpression>(std::move(expression));
 }

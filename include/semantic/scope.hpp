@@ -30,6 +30,8 @@ private:
     size_t pos; // 目前应该访问哪个 children?
     std::string self_type; // for impl scope & function scope
     std::string break_type;
+    bool has_break;
+    bool has_return;
     std::shared_ptr<Scope> parent_scope;
     std::vector<std::shared_ptr<Scope>> children;
     std::unordered_map<std::string, std::shared_ptr<ConstSymbol>> const_symbols;
@@ -55,6 +57,10 @@ public:
     void setBreakType(std::string);
     std::string getBreakType();
     std::string getImplSelfType();
+    void setHasBreak(bool);
+    bool hasBreak();
+    void setHasReturn(bool);
+    bool hasReturn();
     
     // 作用域层次结构管理
     void addChild(std::shared_ptr<Scope> child);

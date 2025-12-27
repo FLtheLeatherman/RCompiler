@@ -41,6 +41,37 @@ bool TypeChecker::isIntegerType(const SymbolType& type) {
     return type == "integer" || type == "i32" || type == "u32" || type == "isize" || type == "usize";
 }
 
+void TypeChecker::checkIntegerOverflow(std::string str, int type) {
+    // std::cout << str << ' ' << type << std::endl;
+    long long num = 0;
+    if (type == 1) {
+        for (size_t _ = 0; _ < str.length(); ++_) {
+            if (!isdigit(str[_])) break;
+            num = num * 10ll + str[_] - '0';
+            if (num > UINT_MAX) {
+                throw std::runtime_error("Semantic: initialize unsigned int overflow");
+            }
+        }
+    } else if (type == 0) {
+        for (size_t _ = 0; _ < str.length(); ++_) {
+            if (!isdigit(str[_])) break;
+            num = num * 10ll + (str[_] - '0');
+            if (num - 1ll > INT_MAX) {
+                throw std::runtime_error("Semantic: initialize signed int overflow");
+            }
+        }
+    } else {
+        for (size_t _ = 0; _ < str.length(); ++_) {
+            if (!isdigit(str[_])) break;
+            num = num * 10ll + (str[_] - '0');
+            // std::cout << num << std::endl;
+            if (num > INT_MAX) {
+                throw std::runtime_error("Semantic: initialize signed int overflow");
+            }
+        }
+    }
+}
+
 TypeChecker::TypeChecker(std::shared_ptr<Scope> root_scope) {
     exit_num = 0;
     this->root_scope = root_scope;
@@ -318,9 +349,12 @@ void TypeChecker::visit(LetStatement& node) {
         auto identifier_patther = std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child);
         if (identifier_patther) {
             auto var_identifier = identifier_patther->identifier;
-            auto var_mutability = identifier_patther->is_mutable;
+            bool var_mutability = identifier_patther->is_mutable;
+            if (auto ref_type = std::dynamic_pointer_cast<ReferenceType>(node.type->child)) {
+                var_mutability |= ref_type->is_mutable;
+            }
             current_scope->addVariable(var_identifier, var_type, var_mutability);
-            std::cout << "[TypeChecker] LetStatement: added variable " << var_identifier << " with type " << var_type << std::endl;
+            std::cout << "[TypeChecker] LetStatement: added variable " << var_identifier << " with type " << var_type << " mutability " << var_mutability << std::endl;
         }
     }
     static_cast<ASTNode&>(node).type = "()";
@@ -393,16 +427,25 @@ void TypeChecker::visit(RawCStringLiteral& node) {
 
 void TypeChecker::visit(IntegerLiteral& node) {
     // 字面量不包含类型信息，无需类型检查
+    // std::cout << "?" << std::endl;
+    std::string number = node.value;
+    // std::cout << number << std::endl;
     if (node.value.length() > 3) {
         if (node.value.substr(node.value.length() - 3, 3) == "u32") {
             node.type = "u32";
+            number = node.value.substr(0, node.value.length() - 3);
+            checkIntegerOverflow(number, 1);
         } else if (node.value.substr(node.value.length() - 3, 3) == "i32") {
             node.type = "i32";
+            number = node.value.substr(0, node.value.length() - 3);
+            checkIntegerOverflow(number, 0);
         } else {
             node.type = "integer";
+            checkIntegerOverflow(number, 1);
         }
     } else {
         node.type = "integer";
+        checkIntegerOverflow(number, 1);
     }
 }
 
@@ -475,8 +518,18 @@ void TypeChecker::visit(UnaryExpression& node) {
             if (!isIntegerType(node.expression->type)) {
                 throw std::runtime_error("Semantic: Unary minus operator can only be applied to integer types");
             }
-            // UnaryExpression 的类型与其成员 expr 相同
-            static_cast<ASTNode&>(node).type = node.expression->type;
+            if (node.expression->type == "integer") {
+                if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(node.expression)) {
+                    checkIntegerOverflow(int_literal->value, 0);
+                    static_cast<ASTNode&>(node).type = "i32";
+                } else {
+                    // UnaryExpression 的类型与其成员 expr 相同
+                    static_cast<ASTNode&>(node).type = node.expression->type;
+                }
+            } else {
+                // UnaryExpression 的类型与其成员 expr 相同
+                static_cast<ASTNode&>(node).type = node.expression->type;
+            }
             break;
             
         case UnaryExpression::NOT:    // !
@@ -530,6 +583,7 @@ void TypeChecker::visit(DereferenceExpression& node) {
     // 解引用表达式的类型为去掉引用标记后的类型
     // 使用 autoDereference 函数来正确处理多重引用
     node.type = autoDereference(node.expression->type);
+    node.mutability = node.expression->mutability;
 }
 
 void TypeChecker::visit(BinaryExpression& node) {
@@ -542,6 +596,18 @@ void TypeChecker::visit(BinaryExpression& node) {
     }
     
     std::cout << "[TypeChecker] BinaryExpression: LHS type = " << node.lhs->type << ", RHS type = " << node.rhs->type << std::endl;
+
+    if (node.lhs->type == "integer" && (node.rhs->type == "i32" || node.rhs->type == "isize")) {
+        if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(node.lhs)) {
+            checkIntegerOverflow(int_literal->value, -1);
+        }
+    }
+
+    if (node.rhs->type == "integer" && (node.lhs->type == "i32" || node.lhs->type == "isize")) {
+        if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(node.rhs)) {
+            checkIntegerOverflow(int_literal->value, -1);
+        }
+    }
     
     // 根据不同的 binary_type 进行特定的类型检查
     switch (node.binary_type) {
@@ -646,6 +712,8 @@ void TypeChecker::visit(BinaryExpression& node) {
 }
 
 void TypeChecker::visit(AssignmentExpression& node) {
+    std::cout << "[TypeChecker] Entering AssignmentExpression node" << std::endl;
+
     if (node.lhs) {
         node.lhs->accept(this);
     }
@@ -662,35 +730,38 @@ void TypeChecker::visit(AssignmentExpression& node) {
         throw std::runtime_error("Semantic: Assignment type mismatch");
     }
     
-    // 检查左边是否是可赋值的左值
-    // 这里需要检查左边表达式是否为可修改的变量、字段访问、数组访问等
-    if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.lhs)) {
-        // 简单变量赋值
-        if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
-            auto var_name = path_expr->path_in_expression->segment1->identifier;
-            if (!current_scope->findVariableMutable(var_name)) {
-                throw std::runtime_error("Semantic: Cannot assign to immutable variable");
-            }
-        }
-    } else if (auto field_expr = std::dynamic_pointer_cast<FieldExpression>(node.lhs)) {
-        // 字段赋值，需要检查字段的可变性
-        if (!field_expr->mutability) {
-            throw std::runtime_error("Semantic: Cannot assign to immutable field");
-        }
-    } else if (auto index_expr = std::dynamic_pointer_cast<IndexExpression>(node.lhs)) {
-        // 数组索引赋值，需要检查数组的可变性
-        if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(index_expr->base_expression)) {
-            if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
-                auto var_name = path_expr->path_in_expression->segment1->identifier;
-                if (!current_scope->findVariableMutable(var_name)) {
-                    throw std::runtime_error("Semantic: Cannot assign to immutable array");
-                }
-            }
-        }
-    } else {
-        // 其他类型的左值，暂时允许
-        // TODO: 添加更多左值类型的检查
+    if (!node.lhs->mutability) {
+        throw std::runtime_error("Semantic: Cannot assign to immutable variable");
     }
+    // // 检查左边是否是可赋值的左值
+    // // 这里需要检查左边表达式是否为可修改的变量、字段访问、数组访问等
+    // if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.lhs)) {
+    //     // 简单变量赋值
+    //     if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
+    //         auto var_name = path_expr->path_in_expression->segment1->identifier;
+    //         if (!current_scope->findVariableMutable(var_name)) {
+    //             throw std::runtime_error("Semantic: Cannot assign to immutable variable");
+    //         }
+    //     }
+    // } else if (auto field_expr = std::dynamic_pointer_cast<FieldExpression>(node.lhs)) {
+    //     // 字段赋值，需要检查字段的可变性
+    //     if (!field_expr->mutability) {
+    //         throw std::runtime_error("Semantic: Cannot assign to immutable field");
+    //     }
+    // } else if (auto index_expr = std::dynamic_pointer_cast<IndexExpression>(node.lhs)) {
+    //     // 数组索引赋值，需要检查数组的可变性
+    //     if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(index_expr->base_expression)) {
+    //         if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
+    //             auto var_name = path_expr->path_in_expression->segment1->identifier;
+    //             if (!current_scope->findVariableMutable(var_name)) {
+    //                 throw std::runtime_error("Semantic: Cannot assign to immutable array");
+    //             }
+    //         }
+    //     }
+    // } else {
+    //     // 其他类型的左值，暂时允许
+    //     // TODO: 添加更多左值类型的检查
+    // }
     
     // 赋值表达式的类型为单元类型
     node.type = "()";
@@ -717,34 +788,9 @@ void TypeChecker::visit(CompoundAssignmentExpression& node) {
     if (lhs_type == "bool" || rhs_type == "bool" || lhs_type == "str" || rhs_type == "str") {
         throw std::runtime_error("Semantic: Compound assignment operators cannot be applied to bool or string type");
     }
-    
-    // 检查左边是否是可赋值的左值
-    if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.lhs)) {
-        // 简单变量赋值
-        if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
-            auto var_name = path_expr->path_in_expression->segment1->identifier;
-            if (!current_scope->findVariableMutable(var_name)) {
-                throw std::runtime_error("Semantic: Cannot assign to immutable variable");
-            }
-        }
-    } else if (auto field_expr = std::dynamic_pointer_cast<FieldExpression>(node.lhs)) {
-        // 字段赋值，需要检查字段的可变性
-        if (!field_expr->mutability) {
-            throw std::runtime_error("Semantic: Cannot assign to immutable field");
-        }
-    } else if (auto index_expr = std::dynamic_pointer_cast<IndexExpression>(node.lhs)) {
-        // 数组索引赋值，需要检查数组的可变性
-        if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(index_expr->base_expression)) {
-            if (path_expr->path_in_expression && path_expr->path_in_expression->segment1) {
-                auto var_name = path_expr->path_in_expression->segment1->identifier;
-                if (!current_scope->findVariableMutable(var_name)) {
-                    throw std::runtime_error("Semantic: Cannot assign to immutable array");
-                }
-            }
-        }
-    } else {
-        // 其他类型的左值，暂时允许
-        // TODO: 添加更多左值类型的检查
+
+    if (!node.lhs->mutability) {
+        throw std::runtime_error("Semantic: Cannot compound assign to immutable variable");
     }
     
     // 复合赋值表达式的类型为左边操作数的类型
@@ -763,6 +809,8 @@ void TypeChecker::visit(TypeCastExpression& node) {
     // 获取源类型和目标类型
     SymbolType source_type = node.expression->type;
     SymbolType target_type = typeToString(node.type);
+
+    source_type = autoDereference(source_type);
     
     // 检查类型转换是否合法
     bool is_valid_cast = false;
@@ -798,15 +846,22 @@ void TypeChecker::checkFunctionParams(const std::vector<std::shared_ptr<Expressi
     }
     for (size_t _ = 0; _ < call_params.size(); ++_) {
         if (!canAssign(func_params[_]->getType(), call_params[_]->type)) {
-            std::cout << func_params[_]->getType() << ' ' << call_params[_]->type << std::endl;
+            // std::cout << func_params[_]->getType() << ' ' << call_params[_]->type << std::endl;
             throw std::runtime_error("Semantic: CallExpr function param type not match");
+        }
+        // std::cout << call_params[_]->type << std::endl;
+        if (call_params[_]->type == "integer" && (func_params[_]->getType() == "i32" || func_params[_]->getType() == "isize")) {
+            if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(call_params[_]->child)) {
+                // std::cout << "?" << std::endl;
+                checkIntegerOverflow(int_literal->value, -1);
+            }
         }
         if (func_params[_]->getMut() >= 2) {
             if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(call_params[_]->child)) {
                 if (auto path_in_expr = std::dynamic_pointer_cast<PathInExpression>(path_expr->path_in_expression)) {
                     auto identifier = path_in_expr->segment1->identifier;
                     if (!current_scope->findVariableMutable(identifier)) {
-                        std::cout << identifier << std::endl;
+                        // std::cout << identifier << std::endl;
                         throw std::runtime_error("Semantic: CallExpr function param mutability not match1");
                     }
                 } else {
@@ -842,7 +897,10 @@ void TypeChecker::visit(CallExpression& node) {
         if (path_in_expr->segment2) {
             // std::cout << "?" << std::endl;
             auto struct_identifier = path_in_expr->segment1->identifier;
-            // std::cout << struct_identifier << std::endl;
+            std::cout << struct_identifier << std::endl;
+            if (struct_identifier == "Self") {
+                struct_identifier = current_scope->getImplSelfType();
+            }
             auto struct_symbol = current_scope->findStructSymbol(struct_identifier);
             if (struct_symbol) {
                 // std::cout << path_in_expr->segment2->identifier << std::endl;
@@ -918,10 +976,7 @@ void TypeChecker::visit(MethodCallExpression& node) {
     if (node.call_params) {
         node.call_params->accept(this);
     }
-    std::string var_identifier, var_type;
-    if (auto path_expr = std::dynamic_pointer_cast<PathExpression>(node.expression)) {
-        var_identifier = path_expr->path_in_expression->segment1->identifier;
-    }
+    std::string var_type;
 
     var_type = autoDereference(node.expression->type);
     if (var_type == "integer") {
@@ -950,7 +1005,8 @@ void TypeChecker::visit(MethodCallExpression& node) {
             auto method_type = func_symbol->getMethodType();
             // std::cout << func_symbol->getMethodTypeString() << std::endl;
             if (method_type == MethodType::SELF_MUT_REF || method_type == MethodType::SELF_MUT_VALUE) {
-                if (!current_scope->findVariableMutable(var_identifier)) {
+                if (!node.expression->mutability) {
+                    // std::cout << func_symbol->getIdentifier() << std::endl;
                     throw std::runtime_error("Semantic: MethodCallExpr not mutable");
                 }
             }
@@ -985,7 +1041,7 @@ void TypeChecker::visit(IndexExpression& node) {
     }
     auto arr_type = autoDereference(node.base_expression->type);
     if (arr_type[0] != '[') {
-        std::cout << arr_type << std::endl;
+        // std::cout << arr_type << std::endl;
         throw std::runtime_error("Semantic: IndexExpr not array");
     }
     auto type = arr_type;
@@ -993,6 +1049,7 @@ void TypeChecker::visit(IndexExpression& node) {
     type = type.substr(1, type.length() - 2);
     type = autoDereference(type);
     node.type = type;
+    node.mutability = node.base_expression->mutability;
 }
 
 // 结构体和数组表达式
@@ -1014,7 +1071,7 @@ void TypeChecker::visit(StructExpression& node) {
         auto type = struct_expr_fields[_]->type;
         auto struct_field = struct_symbol->getField(identifier);
         if (!canAssign(struct_field->getType(), type)) {
-            std::cout << struct_field->getType() << ' ' << type << std::endl;
+            // std::cout << struct_field->getType() << ' ' << type << std::endl;
             throw std::runtime_error("Semantic: StructExpression field type not match");
         }
     }
@@ -1065,6 +1122,10 @@ void TypeChecker::visit(BlockExpression& node) {
                 if (auto expr_without_block = std::dynamic_pointer_cast<ExpressionWithoutBlock>(expr_stmt->child)) {
                     if (auto return_expr = std::dynamic_pointer_cast<ReturnExpression>(expr_without_block->child)) {
                         node.is_last_stmt_return = true;
+                    }
+                }  else if (auto expr_with_block = std::dynamic_pointer_cast<ExpressionWithBlock>(expr_stmt->child)) {
+                    if (auto loop_expr = std::dynamic_pointer_cast<LoopExpression>(expr_with_block->child)) {
+                        node.is_last_stmt_return = loop_expr->is_last_stmt_return;
                     }
                 }
             }
@@ -1175,6 +1236,9 @@ void TypeChecker::visit(LoopExpression& node) {
         node.child->accept(this);
     }
     node.type = node.child->type;
+    if (auto infinite_loop_expr = std::dynamic_pointer_cast<InfiniteLoopExpression>(node.child)) {
+        node.is_last_stmt_return = infinite_loop_expr->is_last_stmt_return;
+    }
 }
 
 void TypeChecker::visit(InfiniteLoopExpression& node) {
@@ -1193,6 +1257,13 @@ void TypeChecker::visit(InfiniteLoopExpression& node) {
         node.type = "()";
     } else {
         node.type = break_type;
+    }
+
+    // std::cout << prev_scope->hasBreak() << ' ' << prev_scope->hasReturn() << std::endl;
+
+    if (!prev_scope->hasBreak() && prev_scope->hasReturn()) {
+        // std::cout << "!!!" << std::endl;
+        node.is_last_stmt_return = true;
     }
     
     current_scope = prev_scope;
@@ -1227,6 +1298,7 @@ void TypeChecker::visit(BreakExpression& node) {
     auto scope = current_scope;
     bool in_loop = false;
     while (scope) {
+        scope->setHasBreak(true);
         if (scope->getType() == ScopeType::LOOP) {
             in_loop = true;
             break;
@@ -1297,6 +1369,7 @@ void TypeChecker::visit(ReturnExpression& node) {
     
     // 向上遍历作用域链，找到第一个 FUNCTION 类型的作用域
     while (scope) {
+        scope->setHasReturn(true);
         if (scope->getType() == ScopeType::FUNCTION) {
             // 获取函数名
             func_name = scope->getSelfType();
@@ -1323,6 +1396,11 @@ void TypeChecker::visit(ReturnExpression& node) {
                     auto expr_type = node.expression->type;
                     if (!canAssign(return_type, expr_type)) {
                         throw std::runtime_error("Semantic: Return type mismatch: expected " + return_type + ", got " + expr_type);
+                    }
+                    if ((return_type == "i32" || return_type == "isize") && expr_type == "integer") {
+                        if (auto int_literal = std::dynamic_pointer_cast<IntegerLiteral>(node.expression->child)) {
+                            checkIntegerOverflow(int_literal->value, -1);
+                        }
                     }
                 } else {
                     // 无返回值的函数，返回类型必须是 "()"
