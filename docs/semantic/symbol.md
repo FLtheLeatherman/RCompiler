@@ -1,350 +1,257 @@
-# 符号系统实现文档
+# 符号系统文档
 
 ## 概述
 
-本文档描述了 Rust 子集编译器中符号系统的实现。该系统为语义分析阶段的符号收集提供了基础支持。
+符号系统是 Rust 子集编译器语义分析阶段的核心组件，负责表示和管理程序中的各种符号实体。该系统提供了完整的符号类型定义、作用域管理和符号查找功能，为类型检查、常量求值等后续分析阶段提供基础支持。
 
-## 实现的组件
+## 符号类型层次结构
 
-### 1. 符号类型 (Symbol Types)
+### 基础符号类
 
-#### 基类 Symbol
-- **位置**: [`include/semantic/symbol.hpp`](include/semantic/symbol.hpp:10)
-- **功能**: 所有符号类型的基类，提供基本的类型信息
+#### Symbol
+- **位置**: [`include/semantic/symbol.hpp:15`](include/semantic/symbol.hpp:15)
+- **功能**: 所有符号类型的抽象基类
+- **核心属性**:
+  - `type`: 符号的类型信息，使用 `SymbolType`（即 `std::string`）表示
 - **主要方法**:
-  - `Symbol(const SymbolType& type)`: 构造函数
+  - `Symbol(const SymbolType& type)`: 构造函数，指定符号类型
   - `SymbolType getType()`: 获取符号类型
+  - `void setType(SymbolType)`: 设置符号类型
 
-#### ConstSymbol
-- **功能**: 表示常量符号
-- **属性**: 标识符、类型
+### 具体符号类型
+
+#### ConstSymbol - 常量符号
+- **位置**: [`include/semantic/symbol.hpp:25`](include/semantic/symbol.hpp:25)
+- **功能**: 表示程序中的常量声明
+- **核心属性**:
+  - `identifier`: 常量名称
+  - `value`: 常量值（`std::shared_ptr<ConstValue>`）
 - **主要方法**:
-  - `getIdentifier()`: 获取常量名
+  - `std::string getIdentifier()`: 获取常量名称
+  - `std::shared_ptr<ConstValue> getValue()`: 获取常量值
+  - `void setValue(std::shared_ptr<ConstValue>)`: 设置常量值
+  - `bool hasValue()`: 检查是否已赋值
 
-#### VariableSymbol
-- **功能**: 表示变量符号（包括函数参数和局部变量）
-- **属性**: 标识符、类型、是否为引用、是否可变
+#### VariableSymbol - 变量符号
+- **位置**: [`include/semantic/symbol.hpp:38`](include/semantic/symbol.hpp:38)
+- **功能**: 表示变量、函数参数等可变实体
+- **核心属性**:
+  - `identifier`: 变量名称
+  - `is_ref`: 是否为引用类型
+  - `is_mut`: 可变性标记（0=不可变，1=可变，2=mut self）
 - **主要方法**:
-  - `getIdentifier()`: 获取变量名
-  - `isRef()`: 检查是否为引用
-  - `isMut()`: 检查是否可变
+  - `std::string getIdentifier()`: 获取变量名
+  - `bool isRef()`: 检查是否为引用
+  - `int getMut()`: 获取可变性级别
 
-#### StructSymbol
-- **功能**: 表示结构体符号，支持存储所有关联项（associated items）
-- **属性**: 标识符、类型、字段映射、关联常量映射、方法映射、关联函数映射
+#### StructSymbol - 结构体符号
+- **位置**: [`include/semantic/symbol.hpp:50`](include/semantic/symbol.hpp:50)
+- **功能**: 表示结构体类型及其所有关联项
+- **核心属性**:
+  - `identifier`: 结构体名称
+  - `vars`: 字段映射（`std::unordered_map<std::string, std::shared_ptr<VariableSymbol>>`）
+  - `associated_consts`: 关联常量映射
+  - `methods`: 方法映射（带 self 参数）
+  - `functions`: 关联函数映射（不带 self 参数）
+
+**字段管理**:
+- `addField(std::shared_ptr<VariableSymbol>)`: 添加字段
+- `bool hasField(const std::string&)`: 检查字段是否存在
+- `std::shared_ptr<VariableSymbol> getField(const std::string&)`: 获取字段
+- `std::vector<std::shared_ptr<VariableSymbol>> getFields()`: 获取所有字段
+
+**关联常量管理**:
+- `addAssociatedConst(std::shared_ptr<ConstSymbol>)`: 添加关联常量
+- `bool hasAssociatedConst(const std::string&)`: 检查关联常量是否存在
+- `std::shared_ptr<ConstSymbol> getAssociatedConst(const std::string&)`: 获取关联常量
+
+**方法管理**（带 self 参数）:
+- `addMethod(std::shared_ptr<FuncSymbol>)`: 添加方法
+- `bool hasMethod(const std::string&)`: 检查方法是否存在
+- `std::shared_ptr<FuncSymbol> getMethod(const std::string&)`: 获取方法
+
+**关联函数管理**（不带 self 参数）:
+- `addAssociatedFunction(std::shared_ptr<FuncSymbol>)`: 添加关联函数
+- `bool hasAssociatedFunction(const std::string&)`: 检查关联函数是否存在
+- `std::shared_ptr<FuncSymbol> getAssociatedFunction(const std::string&)`: 获取关联函数
+
+#### EnumSymbol - 枚举符号
+- **位置**: [`include/semantic/symbol.hpp:99`](include/semantic/symbol.hpp:99)
+- **功能**: 表示枚举类型及其变体
+- **核心属性**:
+  - `identifier`: 枚举名称
+  - `vars`: 变体列表（`std::vector<std::shared_ptr<EnumVar>>`）
 - **主要方法**:
-  - `getIdentifier()`: 获取结构体名
-  
-  - **字段管理**:
-    - `addField()`: 添加字段
-    - `hasField()`: 检查是否存在指定字段
-    - `getField()`: 获取指定字段
-    - `getFields()`: 获取所有字段
-  
-  - **关联常量管理**:
-    - `addAssociatedConst()`: 添加关联常量（来自 impl 块中的 const item）
-    - `hasAssociatedConst()`: 检查是否存在指定关联常量
-    - `getAssociatedConst()`: 获取指定关联常量
-    - `getAssociatedConsts()`: 获取所有关联常量
-  
-  - **方法管理**（带 self 参数）:
-    - `addMethod()`: 添加方法（带 self 参数的函数）
-    - `hasMethod()`: 检查是否存在指定方法
-    - `getMethod()`: 获取指定方法
-    - `getMethods()`: 获取所有方法
-  
-  - **关联函数管理**（不带 self 参数）:
-    - `addAssociatedFunction()`: 添加关联函数（不带 self 参数的函数）
-    - `hasAssociatedFunction()`: 检查是否存在指定关联函数
-    - `getAssociatedFunction()`: 获取指定关联函数
-    - `getAssociatedFunctions()`: 获取所有关联函数
-  
-  - `getAllAssociatedFunctions()`: 获取所有关联项（方法 + 关联函数）
+  - `void addVariant(std::shared_ptr<EnumVar>)`: 添加变体
+  - `const std::vector<std::shared_ptr<EnumVar>>& getVariants()`: 获取所有变体
 
-**存储优化**: 所有关联项现在使用 `std::unordered_map<std::string, std::shared_ptr<T>>` 存储，以名称为键，提供 O(1) 的查找性能。
-
-#### EnumVar & EnumSymbol
-- **功能**: 表示枚举变体和枚举符号
-- **属性**: 标识符、变体列表
+#### EnumVar - 枚举变体
+- **位置**: [`include/semantic/symbol.hpp:91`](include/semantic/symbol.hpp:91)
+- **功能**: 表示枚举的单个变体
+- **核心属性**:
+  - `identifier`: 变体名称
 - **主要方法**:
-  - `getIdentifier()`: 获取标识符
-  - `addVariant()`: 添加变体
-  - `getVariants()`: 获取所有变体
+  - `std::string getIdentifier()`: 获取变体名称
 
-#### 方法类型枚举 (MethodType)
-- **功能**: 定义不同的方法接收器类型
-- **枚举值**:
-  - `NOT_METHOD`: 不是方法（普通函数）
-  - `SELF_VALUE`: `self` (按值获取)
-  - `SELF_REF`: `&self` (不可变引用)
-  - `SELF_MUT_REF`: `&mut self` (可变引用)
-  - `SELF_MUT_VALUE`: `mut self` (按值获取，但可变)
+#### FuncSymbol - 函数符号
+- **位置**: [`include/semantic/symbol.hpp:119`](include/semantic/symbol.hpp:119)
+- **功能**: 表示函数声明，支持方法类型区分
+- **核心属性**:
+  - `identifier`: 函数名称
+  - `is_const`: 是否为常量函数
+  - `method_type`: 方法类型（`MethodType` 枚举）
+  - `func_params`: 参数列表
+  - `return_type`: 返回类型
 
-#### FuncSymbol
-- **功能**: 表示函数符号，支持详细的方法类型区分
-- **属性**: 标识符、返回类型、是否为常量函数、方法类型、参数列表
+**方法类型枚举**:
+```cpp
+enum class MethodType {
+    NOT_METHOD,      // 不是方法（普通函数）
+    SELF_VALUE,      // self (按值获取)
+    SELF_REF,        // &self (不可变引用)
+    SELF_MUT_REF,    // &mut self (可变引用)
+    SELF_MUT_VALUE   // mut self (按值获取，但可变)
+};
+```
+
+**主要方法**:
+- `std::string getIdentifier()`: 获取函数名
+- `bool isConst()`: 检查是否为常量函数
+- `bool isMethod()`: 检查是否为方法（带 self 参数）
+- `MethodType getMethodType()`: 获取方法类型
+- `std::string getMethodTypeString()`: 获取方法类型的字符串表示
+- `void addParameter(std::shared_ptr<VariableSymbol>)`: 添加参数
+- `const std::vector<std::shared_ptr<VariableSymbol>>& getParameters()`: 获取所有参数
+- `SymbolType getReturnType()`: 获取返回类型
+
+#### TraitSymbol - 特征符号
+- **位置**: [`include/semantic/symbol.hpp:139`](include/semantic/symbol.hpp:139)
+- **功能**: 表示特征定义及其关联项
+- **核心属性**:
+  - `identifier`: 特征名称
+  - `const_symbols`: 关联常量映射
+  - `methods`: 方法映射（带 self 参数）
+  - `functions`: 关联函数映射（不带 self 参数）
+
+**管理方法**与 `StructSymbol` 类似，包括关联常量、方法和关联函数的增删查改操作。
+
+#### ArraySymbol - 数组符号
+- **位置**: [`include/semantic/symbol.hpp:171`](include/semantic/symbol.hpp:171)
+- **功能**: 表示数组类型
+- **核心属性**:
+  - `identifier`: 数组标识符
+  - `element_type`: 元素类型
+  - `length`: 数组长度（`std::shared_ptr<ConstValue>`）
 - **主要方法**:
-  - `getIdentifier()`: 获取函数名
-  - `isConst()`: 检查是否为常量函数
-  - `isMethod()`: 检查是否为方法（带 self 参数）
-  - `getMethodType()`: 获取具体的方法类型
-  - `getMethodTypeString()`: 获取方法类型的字符串表示
-  - `addParameter()`: 添加参数
-  - `getParameters()`: 获取所有参数
-  - `getReturnType()`: 获取返回类型
+  - `std::string getElementType()`: 获取元素类型
+  - `std::shared_ptr<ConstValue> getLength()`: 获取数组长度
+  - `void setLength(std::shared_ptr<ConstValue>)`: 设置数组长度
+  - `bool hasLength()`: 检查是否有长度信息
 
-**方法类型识别**: 系统能够精确识别以下 self 参数形式：
-- `self`: 按值获取所有权
-- `&self`: 不可变引用
-- `&mut self`: 可变引用
-- `mut self`: 按值获取但可变
-- `self: Type`: 带类型注解的按值获取
-- `mut self: Type`: 带类型注解的按值可变获取
+## 作用域管理系统
 
-**方法判断**: 通过分析函数参数中的 self 参数类型来确定具体的方法类型，支持简写形式和类型注解形式。
+### Scope 类
+- **位置**: [`include/semantic/scope.hpp:27`](include/semantic/scope.hpp:27)
+- **功能**: 管理作用域层次结构和符号表
+- **继承**: 继承自 `std::enable_shared_from_this<Scope>` 支持共享指针
 
-#### TraitSymbol
-- **功能**: 表示特征符号
-- **属性**: 标识符、关联常量映射、方法映射、关联函数映射
-- **主要方法**:
-  - `getIdentifier()`: 获取特征名
-  
-  - **关联常量管理**:
-    - `addConstSymbol()`: 添加关联常量
-    - `hasConstSymbol()`: 检查是否存在指定关联常量
-    - `getConstSymbol()`: 获取指定关联常量
-    - `getConstSymbols()`: 获取所有关联常量
-  
-  - **方法管理**（带 self 参数）:
-    - `addMethod()`: 添加方法（带 self 参数的函数）
-    - `hasMethod()`: 检查是否存在指定方法
-    - `getMethod()`: 获取指定方法
-    - `getMethods()`: 获取所有方法
-  
-  - **关联函数管理**（不带 self 参数）:
-    - `addAssociatedFunction()`: 添加关联函数（不带 self 参数的函数）
-    - `hasAssociatedFunction()`: 检查是否存在指定关联函数
-    - `getAssociatedFunction()`: 获取指定关联函数
-    - `getAssociatedFunctions()`: 获取所有关联函数
-  
-  - `getAllAssociatedFunctions()`: 获取所有关联项（方法 + 关联函数）
+#### 作用域类型
+```cpp
+enum class ScopeType {
+    GLOBAL,  // 全局作用域
+    BLOCK,   // 块作用域
+    FUNCTION,// 函数作用域
+    TRAIT,   // 特征作用域
+    IMPL,    // 实现作用域
+    LOOP     // 循环作用域
+};
+```
 
-**存储优化**: 所有关联项现在使用 `std::unordered_map<std::string, std::shared_ptr<T>>` 存储，以名称为键，提供 O(1) 的查找性能。
+#### 核心属性
+- `type`: 作用域类型
+- `parent_scope`: 父作用域指针
+- `children`: 子作用域列表
+- `self_type`: 用于 impl 和函数作用域的 self 类型
+- `break_type`: 循环作用域中的 break 表达式类型
+- `pos`: 当前访问的子作用域位置
 
-**方法与关联函数分离**: TraitSymbol 现在将方法和关联函数分开存储，类似于 StructSymbol，通过检查函数是否有 self 参数来进行区分。
+#### 分类符号表
+作用域使用独立的哈希表管理不同类型的符号，避免名称冲突：
 
-### 2. 常量值系统 (ConstValue System)
+- `const_symbols`: 常量符号表
+- `struct_symbols`: 结构体符号表
+- `enum_symbols`: 枚举符号表
+- `func_symbols`: 函数符号表
+- `trait_symbols`: 特征符号表
 
-注意，ConstValue 应当在常量求值部分再进行深度处理，此处仅进行符号的收集。
+#### 变量表
+每个作用域包含一个 `variable_table`，用于存储局部变量信息：
 
-#### ConstValue 基类
-- **位置**: [`include/semantic/const_value.hpp`](include/semantic/const_value.hpp:8)
-- **功能**: 所有常量值的基类，记录对应的 AST 节点指针
-- **主要方法**:
-  - `getExpressionNode()`: 获取对应的 AST 节点
-  - `getValueType()`: 获取值的类型（纯虚函数）
-  - `toString()`: 获取字符串表示（纯虚函数）
-  - `isInt()`, `isBool()`, `isChar()`, `isString()`, `isStruct()`, `isEnum()`: 类型检查方法
-
-#### ConstValue 派生类
-
-**ConstValueInt**: 整型常量值
-- **功能**: 表示整型常量
-- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isInt()`
-
-**ConstValueBool**: 布尔常量值
-- **功能**: 表示布尔常量
-- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isBool()`
-
-**ConstValueChar**: 字符常量值
-- **功能**: 表示字符常量
-- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isChar()`
-
-**ConstValueString**: 字符串常量值
-- **功能**: 表示字符串常量
-- **主要方法**: `getValue()`, `setValue()`, `getValueType()`, `toString()`, `isString()`
-
-**ConstValueStruct**: 结构体常量值
-- **功能**: 表示结构体常量，存储所有字段内容
-- **主要方法**:
-  - `getStructName()`, `setStructName()`: 结构体名称管理
-  - `setField()`, `getField()`, `hasField()`, `getFields()`: 字段管理
-  - `getValueType()`, `toString()`, `isStruct()`
-
-**ConstValueEnum**: 枚举常量值
-- **功能**: 表示枚举常量
-- **主要方法**:
-  - `getEnumName()`, `setEnumName()`: 枚举名称管理
-  - `getVariantName()`, `setVariantName()`: 变体名称管理
-  - `getValueType()`, `toString()`, `isEnum()`
-
-#### 辅助函数
-- `createConstValueFromExpression()`: 从表达式节点创建对应的 ConstValue
-
-### 3. 作用域管理 (Scope Management)
-
-#### Scope 类
-- **位置**: [`include/semantic/scope.hpp`](include/semantic/scope.hpp:19)
-- **功能**: 管理作用域层次结构和分类符号表
-- **继承**: 继承自 `std::enable_shared_from_this<Scope>` 以支持共享指针管理
-- **作用域类型**:
-  - `GLOBAL`: 全局作用域
-  - `BLOCK`: 块作用域
-  - `FUNCTION`: 函数作用域
-  - `TRAIT`: 特征作用域
-  - `IMPL`: 实现作用域
-  - `LOOP`: 循环作用域
-
-- **分类符号表设计**: 使用独立的哈希表管理不同类型的符号，避免名称冲突和提高查找效率
-
-#### 主要方法
-
-**基本访问器**:
-- `getType()`: 获取作用域类型
-- `getParent()`: 获取父作用域
-- `getChildren()`: 获取所有子作用域
-
-**作用域层次结构管理**:
-- `addChild()`: 添加子作用域
-- `setParent()`: 设置父作用域
-
-**分类符号管理**:
-- **常量符号**: `addConstSymbol()`, `getConstSymbol()`, `hasConstSymbol()`, `getConstSymbols()`
-- **结构体符号**: `addStructSymbol()`, `getStructSymbol()`, `hasStructSymbol()`, `getStructSymbols()`
-- **枚举符号**: `addEnumSymbol()`, `getEnumSymbol()`, `hasEnumSymbol()`, `getEnumSymbols()`
-- **函数符号**: `addFuncSymbol()`, `getFuncSymbol()`, `hasFuncSymbol()`, `getFuncSymbols()`
-- **特征符号**: `addTraitSymbol()`, `getTraitSymbol()`, `hasTraitSymbol()`, `getTraitSymbols()`
-
-**变量表管理**:
-- `addVariable()`: 添加变量到当前作用域的变量表，支持指定可变性
-- `getVariableType()`: 获取当前作用域中指定变量的类型
-- `isVariableMutable()`: 获取当前作用域中指定变量的可变性
-- `hasVariable()`: 检查当前作用域中是否存在指定变量
-- `getVariableTable()`: 获取当前作用域的完整变量表
-- `findVariableType()`: 在作用域链中查找变量的类型
-- `findVariableMutable()`: 在作用域链中查找变量的可变性
-- `variableExists()`: 检查变量是否在作用域链中存在
-
-**作用域链查找**:
-- `findSymbol()`: 在作用域链中查找常量符号
-- `findStructSymbol()`: 在作用域链中查找结构体符号
-- `findEnumSymbol()`: 在作用域链中查找枚举符号
-- `findFuncSymbol()`: 在作用域链中查找函数符号
-- `findTraitSymbol()`: 在作用域链中查找特征符号
-
-**符号存在性检查**:
-- `symbolExists()`: 检查常量符号是否存在于作用域链中
-- `structSymbolExists()`: 检查结构体符号是否存在于作用域链中
-- `enumSymbolExists()`: 检查枚举符号是否存在于作用域链中
-- `funcSymbolExists()`: 检查函数符号是否存在于作用域链中
-- `traitSymbolExists()`: 检查特征符号是否存在于作用域链中
-
-**当前作用域操作**:
-- `getSymbolInCurrentScope()`: 仅在当前作用域查找符号
-- `hasSymbolInCurrentScope()`: 检查当前作用域中是否存在符号
-
-**调试和工具**:
-- `printScope()`: 打印作用域层次结构和符号信息，包括变量表内容
-- `getTotalSymbolCount()`: 获取作用域树中的总符号数量
-
-#### 变量表 (Variable Table)
-
-每个 Scope 现在包含一个 `variable_table`，用于存储当前作用域中变量的状态信息：
-
-- **数据结构**: `std::unordered_map<std::string, VariableInfo>`
-- **键**: 变量标识符 (identifier)
-- **值**: `VariableInfo` 结构体，包含：
-  - `type`: 变量类型的字符串表示
-  - `is_mutable`: 布尔值，表示变量是否可变
-
-**VariableInfo 结构体**:
 ```cpp
 struct VariableInfo {
-    std::string type;
-    bool is_mutable;
+    std::string type;    // 变量类型
+    bool is_mutable;     // 可变性标记
     
     VariableInfo() : type(""), is_mutable(false) {}
     VariableInfo(const std::string& t, bool mut = false) : type(t), is_mutable(mut) {}
 };
 ```
 
-**功能特性**:
-- **作用域隔离**: 每个作用域维护独立的变量表，支持变量遮蔽
-- **可变性跟踪**: 记录每个变量是否为可变变量，支持 Rust 的所有权系统
-- **作用域链查找**: `findVariableType()` 和 `findVariableMutable()` 支持向上层作用域查找变量
-- **类型字符串存储**: 使用字符串表示类型，便于调试和类型检查
-- **调试支持**: `printScope()` 会显示当前作用域的所有变量信息，包括可变性标记
+### 作用域管理方法
 
-**使用场景**:
-- 类型检查阶段跟踪变量类型和可变性
-- 变量存在性验证
-- Rust 所有权和借用检查的基础
-- 可变性规则验证
-- 作用域规则实现
-- 调试和诊断信息生成
+#### 层次结构管理
+- `void addChild(std::shared_ptr<Scope>)`: 添加子作用域
+- `void setParent(std::shared_ptr<Scope>)`: 设置父作用域
+- `std::shared_ptr<Scope> getParent()`: 获取父作用域
+- `std::shared_ptr<Scope> getChild()`: 获取当前子作用域
+- `void nextChild()`: 移动到下一个子作用域
 
-## 特性
+#### 符号管理
+每个符号类型都有完整的 CRUD 操作：
 
-### 1. 作用域链查找
-- 符号查找遵循作用域链规则：当前作用域 → 父作用域 → 祖父作用域 → ... → 全局作用域
-- 支持符号遮蔽：内层作用域的符号可以遮蔽外层作用域的同名符号
+**常量符号**:
+- `void addConstSymbol(const std::string&, std::shared_ptr<ConstSymbol>)`
+- `std::shared_ptr<ConstSymbol> getConstSymbol(const std::string&)`
+- `bool hasConstSymbol(const std::string&)`
 
-### 2. 类型安全
-- 使用 `std::shared_ptr` 进行内存管理，避免内存泄漏
-- 强类型系统确保编译时类型安全
+**结构体符号**:
+- `void addStructSymbol(const std::string&, std::shared_ptr<StructSymbol>)`
+- `std::shared_ptr<StructSymbol> getStructSymbol(const std::string&)`
+- `bool hasStructSymbol(const std::string&)`
 
-### 3. 扩展性
-- 基于继承的设计，易于添加新的符号类型
-- 模块化设计，便于维护和扩展
+**其他符号类型**（枚举、函数、特征）类似...
 
-### 3. 符号收集器 (SymbolCollector)
+#### 变量表管理
+- `void addVariable(const std::string&, const std::string&, bool is_mutable = false)`: 添加变量
+- `std::string getVariableType(const std::string&)`: 获取变量类型
+- `bool isVariableMutable(const std::string&)`: 获取变量可变性
+- `bool hasVariable(const std::string&)`: 检查变量是否存在
 
-#### SymbolCollector 类
-- **位置**: [`include/semantic/symbol_collector.hpp`](include/semantic/symbol_collector.hpp:8)
+#### 作用域链查找
+支持在作用域链中进行符号查找，实现符号遮蔽：
+
+- `std::shared_ptr<ConstSymbol> findConstSymbol(const std::string&)`: 在作用域链中查找常量
+- `std::shared_ptr<StructSymbol> findStructSymbol(const std::string&)`: 在作用域链中查找结构体
+- `std::string findVariableType(const std::string&)`: 在作用域链中查找变量类型
+- `bool variableExists(const std::string&)`: 检查变量是否在作用域链中存在
+
+#### 调试支持
+- `void printScope(int indent = 0)`: 打印作用域层次结构和符号信息
+- `size_t getTotalSymbolCount()`: 获取作用域树中的总符号数量
+
+## 符号收集器
+
+### SymbolCollector 类
+- **位置**: [`include/semantic/symbol_collector.hpp:13`](include/semantic/symbol_collector.hpp:13)
 - **实现**: [`src/semantic/symbol_collector.cpp`](src/semantic/symbol_collector.cpp:1)
-- **功能**: 继承自 ASTVisitor，负责遍历 AST 并构建符号表和作用域层次结构
+- **功能**: 继承自 `ASTVisitor`，负责遍历 AST 并构建符号表和作用域层次结构
 
-#### 主要成员
+#### 核心成员
 - `current_scope`: 当前活动的作用域指针
 - `root_scope`: 根作用域（全局作用域）指针
 
-#### 辅助方法
-- `typeToString(std::shared_ptr<Type> type)`: 将 Type 节点转换为字符串表示
-- `createVariableSymbolFromPattern()`: 从模式匹配节点创建变量符号
-- `getRootScope()`: 获取根作用域
-
-#### 符号收集功能
-
-**顶层符号收集**:
-- [`visit(Crate&)`](src/semantic/symbol_collector.cpp:35): 创建全局作用域，遍历所有顶层项
-- [`visit(Item&)`](src/semantic/symbol_collector.cpp:49): 访问单个项
-
-**声明类符号收集**:
-- [`visit(Function&)`](src/semantic/symbol_collector.cpp:53): 收集函数符号，创建函数作用域，处理参数和返回类型
-- [`visit(Struct&)`](src/semantic/symbol_collector.cpp:120): 访问结构体定义
-- [`visit(StructStruct&)`](src/semantic/symbol_collector.cpp:125): 收集结构体符号和字段信息
-- [`visit(Enumeration&)`](src/semantic/symbol_collector.cpp:165): 收集枚举符号和变体
-- [`visit(ConstantItem&)`](src/semantic/symbol_collector.cpp:207): 收集常量符号，（暂不）支持 ConstValue 集成
-- [`visit(Trait&)`](src/semantic/symbol_collector.cpp:218): 收集特征符号和关联项，创建特征作用域
-- [`visit(Implementation&)`](src/semantic/symbol_collector.cpp:260): 访问实现块
-- [`visit(InherentImpl&)`](src/semantic/symbol_collector.cpp:265): 处理固有实现，创建实现作用域
-- [`visit(TraitImpl&)`](src/semantic/symbol_collector.cpp:285): 处理特征实现
-
-**语句和表达式符号收集**:
-- [`visit(BlockExpression&)`](src/semantic/symbol_collector.cpp:340): 创建块作用域，处理局部变量
-- [`visit(LetStatement&)`](src/semantic/symbol_collector.cpp:461): 收集局部变量符号，支持数组类型处理
-- [`visit(LoopExpression&)`](src/semantic/symbol_collector.cpp:405): 处理循环表达式
-- [`visit(InfiniteLoopExpression&)`](src/semantic/symbol_collector.cpp:410): 创建循环作用域
-- [`visit(PredicateLoopExpression&)`](src/semantic/symbol_collector.cpp:428): 处理条件循环
-
-**完整 AST 遍历**:
-实现了所有必要的 visit 方法，确保能够完整遍历 AST，包括：
-- 所有表达式类型（字面量、运算符、调用、访问等）
-- 所有语句类型（let、表达式语句等）
-- 所有模式匹配类型
-- 所有类型定义
-
 #### 作用域建立规则
+SymbolCollector 在遍历 AST 时按以下规则创建作用域：
 
 1. **全局作用域**: 在 `visit(Crate&)` 中创建，包含所有顶层符号
 2. **函数作用域**: 在 `visit(Function&)` 中创建，包含函数参数
@@ -355,83 +262,117 @@ struct VariableInfo {
 
 #### 符号收集策略
 
-- **常量项**: 收集标识符和类型信息，存储在当前作用域的常量表中
-- **结构体**: 收集结构体名和字段信息，字段作为 VariableSymbol 存储
-- **枚举**: 收集枚举名和所有变体
-- **函数**: 收集函数名、参数列表、返回类型，参数作为 VariableSymbol 存储在函数作用域中
-- **特征**: 收集特征名、关联常量和关联函数
+**常量项收集**:
+- 收集标识符和类型信息
+- 存储在当前作用域的常量表中
+- 支持常量值的延迟求值
 
-现在我们可以处理局部变量了。通过 Scope 的 variable_table，我们可以在符号收集阶段记录局部变量的信息：
+**结构体收集**:
+- 收集结构体名和字段信息
+- 字段作为 `VariableSymbol` 存储
+- 支持字段类型检查
 
-- **局部变量收集**: 在 `visit(LetStatement&)` 中收集局部变量，使用 `addVariable()` 添加到当前作用域的变量表
-- **变量类型跟踪**: 使用字符串表示变量类型，便于后续类型检查
-- **可变性跟踪**: 记录变量是否为可变变量（通过 `mut` 关键字），为 Rust 的所有权系统提供基础
-- **作用域规则**: 局部变量遵循标准的作用域规则，支持变量遮蔽
-- **可变性验证**: 支持在后续的类型检查阶段验证变量的可变性使用
+**函数收集**:
+- 收集函数名、参数列表、返回类型
+- 参数作为 `VariableSymbol` 存储在函数作用域中
+- 识别方法类型（self 参数形式）
 
-注意：我们仍然没有处理数组类型，因为确定其长度需要常量求值。
+**特征收集**:
+- 收集特征名、关联常量和关联函数
+- 区分方法和关联函数
 
-### 4. StructSymbol 的关联项管理
+**局部变量收集**:
+- 在 `visit(LetStatement&)` 中收集局部变量
+- 使用 `addVariable()` 添加到当前作用域的变量表
+- 支持可变性标记和引用类型
 
-#### 关联项类型
-StructSymbol 现在支持存储以下类型的关联项：
+## 设计特性
 
-1. **结构体字段**：原始的字段信息，通过 `VariableSymbol` 存储
-2. **关联常量**：来自 impl 块中的 const item，通过 `ConstSymbol` 存储
-3. **方法**：带 self 参数的函数，通过 `FuncSymbol` 存储在 `methods` 列表中
-4. **关联函数**：不带 self 参数的函数，通过 `FuncSymbol` 存储在 `functions` 列表中
+### 1. 类型安全
+- 使用强类型系统确保编译时类型安全
+- `std::shared_ptr` 进行内存管理，避免内存泄漏
 
-#### 关联项的添加和管理
+### 2. 性能优化
+- 哈希表实现 O(1) 符号查找
+- 分类符号表提高查找效率
+- 共享指针避免不必要的拷贝
 
-**固有实现（InherentImpl）中的关联项**：
-- 关联常量：通过 `addAssociatedConst()` 添加到 `associated_consts` 列表
-- 方法：通过 `addMethod()` 添加到 `methods` 列表（需要检查是否有 self 参数）
-- 关联函数：通过 `addAssociatedFunction()` 添加到 `functions` 列表
+### 3. 扩展性
+- 基于继承的设计，易于添加新的符号类型
+- 模块化设计，便于维护和扩展
 
-**特征实现（TraitImpl）中的关联项**：
-- 同样通过上述方法添加到对应的列表中
-- 需要验证与特征定义的兼容性
-- 确保特征中定义的所有关联项都被实现
+### 4. 作用域正确性
+- 完整的作用域链支持
+- 符号遮蔽机制
+- 严格的作用域创建规则
 
-#### 方法与关联函数的区分
+## 使用示例
 
-系统通过检查函数是否有 self 参数来区分方法和关联函数：
-- **方法**：带有 self 参数（`self`, `&self`, `&mut self`, `self: Type` 等）
-- **关联函数**：不带 self 参数，类似于静态方法
+### 创建符号表
+```cpp
+// 创建符号收集器
+SymbolCollector collector;
 
-这种设计使得 StructSymbol 能够完整地表示一个结构体的所有相关信息，包括其字段、方法和关联函数，为后续的类型检查和代码生成提供了完整的符号信息。
+// 遍历 AST 构建符号表
+collector.visit(crate_node);
 
-## 下一步
+// 获取根作用域
+auto root_scope = collector.getRootScope();
+```
 
-符号系统、符号收集器、结构体检查器和变量表管理（包含可变性支持）已完成实现。下一步可以：
+### 符号查找
+```cpp
+// 在当前作用域查找符号
+auto const_symbol = current_scope->getConstSymbol("MY_CONST");
 
-1. 实现名称解析功能，利用已建立的符号表和作用域结构
-2. 添加类型检查功能，现在可以利用 variable_table 进行变量类型和可变性验证
-3. 实现 Rust 所有权和借用检查的基础功能
-4. 实现可变性规则验证（如不可变变量的修改检查）
-5. 实现更复杂的语义分析功能
-6. 添加错误处理和诊断信息
-7. 在符号收集阶段集成局部变量的完整处理
+// 在作用域链中查找符号
+auto struct_symbol = current_scope->findStructSymbol("MyStruct");
+
+// 查找变量类型和可变性
+auto var_type = current_scope->findVariableType("my_var");
+auto is_mutable = current_scope->findVariableMutable("my_var");
+```
+
+### 符号操作
+```cpp
+// 添加结构体符号
+auto struct_symbol = std::make_shared<StructSymbol>("Point", "Point");
+current_scope->addStructSymbol("Point", struct_symbol);
+
+// 添加字段
+auto field_x = std::make_shared<VariableSymbol>("x", "i32");
+struct_symbol->addField(field_x);
+
+// 添加方法
+auto method = std::make_shared<FuncSymbol>("new_point", "Point", false, MethodType::ASSOCIATED_FUNCTION);
+struct_symbol->addAssociatedFunction(method);
+```
 
 ## 相关文档
 
-- [结构体检查器文档](struct_checker.md)：详细描述 StructChecker 的实现和功能
+- [作用域管理详细文档](../scope.md): 深入了解作用域系统的实现
+- [符号收集器文档](../symbol_collector.md): 了解符号收集的详细流程
+- [类型检查器文档](../type_checker.md): 了解如何使用符号系统进行类型检查
+- [常量求值文档](../const_value.md): 了解常量值的表示和计算
 
-## 文件结构
+## 扩展指南
 
-```
-include/semantic/
-├── symbol.hpp         # 符号类型定义
-├── scope.hpp          # 作用域管理
-├── symbol_collector.hpp # 符号收集器接口
-└── struct_checker.hpp # 结构体检查器接口
+### 添加新的符号类型
+1. 在 [`symbol.hpp`](include/semantic/symbol.hpp:1) 中定义新的符号类，继承自 `Symbol`
+2. 在 [`scope.hpp`](include/semantic/scope.hpp:1) 中添加相应的管理方法
+3. 在 [`symbol_collector.cpp`](src/semantic/symbol_collector.cpp:1) 中添加收集逻辑
+4. 更新相关的检查器以支持新符号类型
 
-src/semantic/
-├── symbol.cpp         # 符号类型实现
-├── scope.cpp          # 作用域管理实现
-├── symbol_collector.cpp # 符号收集器实现
-└── struct_checker.cpp # 结构体检查器实现
+### 扩展作用域功能
+1. 在 `Scope` 类中添加新的属性或方法
+2. 更新作用域创建规则（如需要新的作用域类型）
+3. 确保符号查找逻辑正确处理新功能
 
-docs/semantic/
-├── symbol.md           # 符号系统完整文档
-└── struct_checker.md  # 结构体检查器文档
+### 性能优化
+1. 考虑使用更高效的数据结构
+2. 优化符号查找算法
+3. 减少不必要的内存分配
+
+---
+
+符号系统为 Rust 子集编译器提供了坚实的语义分析基础，通过精心设计的类型层次结构和作用域管理，确保了编译器的正确性和性能。该系统的模块化设计使其易于扩展和维护，为支持更复杂的语言特性奠定了基础。

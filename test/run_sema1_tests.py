@@ -36,7 +36,7 @@ def run_single_test(test_name):
     try:
         # 运行测试程序
         result = subprocess.run(
-            ['./run_test', test_name],
+            ['./run_test1', test_name],
             cwd='build',
             capture_output=True,
             text=True,

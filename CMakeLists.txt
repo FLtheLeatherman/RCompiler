@@ -25,26 +25,8 @@ add_executable(code
         src/main.cpp
 )
 
-#add_executable(parser_visualize_test
-#        src/lexer/lexer.cpp
-#        src/parser/visitor.cpp
-#        src/parser/astnode.cpp
-#        src/parser/parser.cpp
-#        src/parser/astprinter.cpp
-#        test/parser_visualize_test.cpp
-#)
-
-#add_executable(parser_test
-#       src/lexer/lexer.cpp
-#       src/parser/visitor.cpp
-#       src/parser/astnode.cpp
-#       src/parser/parser.cpp
-#       src/parser/astprinter.cpp
-#       test/parser_test.cpp
-#)
-
 # Test runner executable
-add_executable(run_test
+add_executable(run_test1
         src/lexer/lexer.cpp
         src/parser/visitor.cpp
         src/parser/astnode.cpp
@@ -57,7 +39,7 @@ add_executable(run_test
         src/semantic/const_evaluator.cpp
         src/semantic/struct_checker.cpp
         src/semantic/type_checker.cpp
-        test/run_test.cpp
+        test/run_test1.cpp
 )
 
 add_executable(run_test2
