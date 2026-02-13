@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <cstring>
 #include <vector>
@@ -14,48 +15,52 @@ public:
 
 class VoidType : public Type {
 public:
+    std::string toString() const override;
 };
 
 class IntegerType : public Type {
-public:
+private:
+    uint32_t bit_width;
+    virtual uint32_t getBitWidth() const = 0;
 };
 
 class Int32Type : public IntegerType {
 public:
+    uint32_t getBitWidth() const override;
+    std::string toString() const override;
 };
 
 class Int8Type : public IntegerType {
 public:
+    uint32_t getBitWidth() const override;
+    std::string toString() const override;
 };
 
 class Int1Type : public IntegerType {
 public:
+    uint32_t getBitWidth() const override;
+    std::string toString() const override;
 };
 
 class StructType : public Type {
-public:
+private:
     std::string name;
     std::vector<Type*> members;
+public:
+    std::string toString() const override;
 };
 
 class ArrayType : public Type {
-public:
+private:
     Type* element_type;
     size_t num_elements;
+public:
+    std::string toString() const override;
 };
 
 class PointerType : public Type {
 public:
-};
-
-class FunctionType : public Type {
-public:
-    Type* return_type;
-    std::vector<Type*> param_types;
-};
-
-class InstructionType : public Type {
-public:
+    std::string toString() const override;
 };
 
 }
