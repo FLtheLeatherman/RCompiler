@@ -4,15 +4,22 @@
 #include "parser/visitor.hpp"
 #include "semantic/scope.hpp"
 #include "ir_builder.hpp"
+#include "type.hpp"
+#include "value.hpp"
 
-namespace llvm {
+#include <memory>
+#include <unordered_map>
+
 class IRGenerator : public ASTVisitor {
 private:
     Scope *current_scope;
     Scope *root_scope;
-    IRBuilder *builder;
+    llvm::IRBuilder *builder;
+    std::unordered_map<std::string, llvm::Function*> functions;
+    std::unordered_map<std::string, llvm::GlobalVariable*> global_variables;
+    std::vector<std::unordered_map<std::string, std::string>> local_variables_stack; // 用于处理局部变量的作用域
 public:
-    IRGenerator(Scope *root_scope, IRBuilder *builder);
+    IRGenerator(Scope *root_scope, llvm::IRBuilder *builder);
     ~IRGenerator() = default;
 
     // 顶层节点
@@ -117,5 +124,3 @@ public:
     void visit(ShorthandSelf& node) override;
     void visit(TypedSelf& node) override;
 };
-
-}

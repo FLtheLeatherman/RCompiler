@@ -1,8 +1,6 @@
 #include "ir/ir_generator.hpp"
 
-namespace llvm {
-
-IRGenerator::IRGenerator(Scope *root_scope, IRBuilder *builder) : current_scope(root_scope), root_scope(root_scope), builder(builder) {}
+IRGenerator::IRGenerator(Scope *root_scope, llvm::IRBuilder *builder) : current_scope(root_scope), root_scope(root_scope), builder(builder) {}
 
 void IRGenerator::visit(Crate& node) {
     for (auto item: node.items) {
@@ -526,7 +524,5 @@ void IRGenerator::visit(PathInExpression& node) {
 }
 
 void IRGenerator::visit(PathIdentSegment& node) {
-
-}
 
 }
