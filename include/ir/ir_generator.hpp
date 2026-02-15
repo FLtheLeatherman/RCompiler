@@ -18,6 +18,10 @@ private:
     std::unordered_map<std::string, llvm::Function*> functions;
     std::unordered_map<std::string, llvm::GlobalVariable*> global_variables;
     std::vector<std::unordered_map<std::string, llvm::LocalVariable*>> local_variables_stack; // 用于处理局部变量的作用域
+    std::unordered_map<std::string, uint32_t> var_counter; // 用于生成唯一的局部变量名
+
+    llvm::Type* getLLVMType(std::string);
+    llvm::Value* getVarValue(std::string);
 public:
     IRGenerator(Scope *root_scope, llvm::IRBuilder *builder);
     ~IRGenerator() = default;

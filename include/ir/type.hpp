@@ -15,29 +15,34 @@ public:
 
 class VoidType : public Type {
 public:
+    VoidType();
     std::string toString() const override;
 };
 
 class IntegerType : public Type {
-private:
+protected:
     uint32_t bit_width;
+public:
     virtual uint32_t getBitWidth() const = 0;
 };
 
 class Int32Type : public IntegerType {
 public:
+    Int32Type();
     uint32_t getBitWidth() const override;
     std::string toString() const override;
 };
 
 class Int8Type : public IntegerType {
 public:
+    Int8Type();
     uint32_t getBitWidth() const override;
     std::string toString() const override;
 };
 
 class Int1Type : public IntegerType {
 public:
+    Int1Type();
     uint32_t getBitWidth() const override;
     std::string toString() const override;
 };
@@ -45,8 +50,8 @@ public:
 class StructType : public Type {
 private:
     std::string name;
-    std::vector<Type*> members;
 public:
+    StructType(std::string name);
     std::string toString() const override;
 };
 
@@ -55,11 +60,13 @@ private:
     Type* element_type;
     size_t num_elements;
 public:
+    ArrayType(Type* element_type, size_t num_elements);
     std::string toString() const override;
 };
 
 class PointerType : public Type {
 public:
+    PointerType();
     std::string toString() const override;
 };
 

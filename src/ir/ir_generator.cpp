@@ -1,5 +1,52 @@
 #include "ir/ir_generator.hpp"
 
+llvm::Type* IRGenerator::getLLVMType(std::string type_name) {
+    if (type_name[0] == '[') {
+        std::string num;
+        size_t pos = type_name.find_first_of(']') + 1;
+        while (pos < type_name.size() && std::isdigit(type_name[pos])) {
+            num += type_name[pos];
+            pos++;
+        }
+        uint32_t array_size = std::stoul(num);
+        std::string element_type_name = type_name.substr(1, type_name.find_first_of(']') - 1);
+        llvm::Type* element_type = getLLVMType(element_type_name);
+        auto array_type = new llvm::ArrayType(element_type, array_size);
+        return array_type;
+    } else if (type_name == "i32" || type_name == "u32" || type_name == "isize" || type_name == "usize") {
+        auto res = new llvm::Int32Type();
+        return res;
+    } else if (type_name == "char") {
+        auto res = new llvm::Int8Type();
+        return res;
+    } else if (type_name == "bool") {
+        auto res = new llvm::Int1Type();
+        return res;
+    } else if (type_name == "()") {
+        auto res = new llvm::VoidType();
+        return res;
+    } else if (type_name[0] == '&') {
+        auto res = new llvm::PointerType();
+        return res;
+    } else {
+        auto res = new llvm::StructType(type_name);
+        return res;
+    }
+}
+llvm::Value* IRGenerator::getVarValue(std::string var_name) {
+    for (auto it = local_variables_stack.rbegin(); it != local_variables_stack.rend(); ++it) {
+        auto& local_vars = *it;
+        if (local_vars.find(var_name) != local_vars.end()) {
+            return local_vars[var_name];
+        }
+    }
+    if (global_variables.find(var_name) != global_variables.end()) {
+        return global_variables[var_name];
+    }
+    return nullptr; // 变量未找到
+}
+
+
 IRGenerator::IRGenerator(Scope *root_scope, llvm::IRBuilder *builder) : current_scope(root_scope), root_scope(root_scope), builder(builder) {}
 
 void IRGenerator::visit(Crate& node) {
@@ -17,6 +64,7 @@ void IRGenerator::visit(Item& node) {
 void IRGenerator::visit(Function& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
     // 处理函数
     
@@ -45,6 +93,7 @@ void IRGenerator::visit(ConstantItem& node) {
 void IRGenerator::visit(Trait& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
     for (auto& item : node.associated_item) {
         if (item) {
@@ -65,6 +114,7 @@ void IRGenerator::visit(Implementation& node) {
 void IRGenerator::visit(InherentImpl& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
     // 处理关联项
     for (auto& item : node.associated_item) {
@@ -80,6 +130,7 @@ void IRGenerator::visit(InherentImpl& node) {
 void IRGenerator::visit(TraitImpl& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
     // 处理关联项
     for (auto& item : node.associated_item) {
@@ -188,6 +239,17 @@ void IRGenerator::visit(LetStatement& node) {
     if (node.pattern_no_top_alt) {
         node.pattern_no_top_alt->accept(this);
     }
+    auto type_name = node.type->type;
+    llvm::Type* llvm_type = getLLVMType(type_name);
+    auto var_node = std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child);
+    auto var_name = var_node->identifier;
+    uint32_t var_id = var_counter[var_name]++;
+    auto var_real_name = "%" + var_name + "_" + std::to_string(var_id);
+    auto local_var = new llvm::LocalVariable(var_real_name, llvm_type);
+    local_variables_stack.back()[var_name] = local_var;
+    auto alloca = builder->createAlloca(var_real_name, llvm_type);
+    builder->createStore(llvm_type, node.expression->ir_value, alloca);
+    node.ir_value = alloca; // 将变量的地址存储在 ir_value 中，以便后续使用
 }
 
 void IRGenerator::visit(ExpressionStatement& node) {
@@ -247,7 +309,7 @@ void IRGenerator::visit(IntegerLiteral& node) {
 }
 
 void IRGenerator::visit(BoolLiteral& node) {
-
+    
 }
 
 void IRGenerator::visit(PathExpression& node) {
@@ -320,22 +382,40 @@ void IRGenerator::visit(BinaryExpression& node) {
             node.ir_value = builder->createBinaryOp("shr", lhs, rhs);
             break;
         case BinaryExpression::EQ_EQ:
-            node.ir_value = builder->createBinaryOp("eq", lhs, rhs);
+            node.ir_value = builder->createIcmp("eq", lhs, rhs);
             break;
         case BinaryExpression::NE:
-            node.ir_value = builder->createBinaryOp("ne", lhs, rhs);
+            node.ir_value = builder->createIcmp("ne", lhs, rhs);
             break;
         case BinaryExpression::GT:
-            node.ir_value = builder->createBinaryOp("gt", lhs, rhs);
+            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+                node.ir_value = builder->createIcmp("sgt", lhs, rhs); // 有符号比较
+            } else {
+                node.ir_value = builder->createIcmp("ugt", lhs, rhs); // 无符号比较
+            }
             break;
         case BinaryExpression::LT:
-            node.ir_value = builder->createBinaryOp("lt", lhs, rhs);
+            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+                node.ir_value = builder->createIcmp("slt", lhs, rhs); // 有符号比较
+            } else {
+                node.ir_value = builder->createIcmp("ult", lhs, rhs); // 无符号比较
+            }
+            node.ir_value = builder->createIcmp("lt", lhs, rhs);
             break;
         case BinaryExpression::GE:
-            node.ir_value = builder->createBinaryOp("ge", lhs, rhs);
+            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+                node.ir_value = builder->createIcmp("sge", lhs, rhs); // 有符号比较
+            } else {
+                node.ir_value = builder->createIcmp("uge", lhs, rhs); // 无符号比较
+            }
+            node.ir_value = builder->createIcmp("ge", lhs, rhs);
             break;
         case BinaryExpression::LE:
-            node.ir_value = builder->createBinaryOp("le", lhs, rhs);
+            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+                node.ir_value = builder->createIcmp("sle", lhs, rhs); // 有符号比较
+            } else {
+                node.ir_value = builder->createIcmp("ule", lhs, rhs); // 无符号比较
+            }
             break;
         case BinaryExpression::AND_AND:
             node.ir_value = builder->createBinaryOp("and", lhs, rhs); // 逻辑与可以用位与实现
@@ -424,6 +504,7 @@ void IRGenerator::visit(GroupedExpression& node) {
 void IRGenerator::visit(BlockExpression& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
     if (node.statements) {
         node.statements->accept(this);
@@ -454,6 +535,7 @@ void IRGenerator::visit(LoopExpression& node) {
 void IRGenerator::visit(InfiniteLoopExpression& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
 
     if (node.block_expression) {
         node.block_expression->accept(this);
@@ -466,6 +548,7 @@ void IRGenerator::visit(InfiniteLoopExpression& node) {
 void IRGenerator::visit(PredicateLoopExpression& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
+    local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
 
     if (node.condition) {
         node.condition->accept(this);
@@ -578,8 +661,12 @@ void IRGenerator::visit(PathInExpression& node) {
     if (node.segment2) {
         node.segment2->accept(this);
     }
+    node.ir_value = node.segment1->ir_value;
+    // 先不管 segment2，后续如果需要处理方法调用等情况再来完善
 }
 
 void IRGenerator::visit(PathIdentSegment& node) {
-
+    if (node.path_type == 0) {
+        node.ir_value = getVarValue(node.identifier);
+    }
 }

@@ -25,6 +25,7 @@ public:
     void createStore(llvm::Type* type, llvm::Value* value, llvm::Value* ptr);
     void createBranch(std::string label);
     void createLable(std::string label);
+    llvm::Instruction* createIcmp(std::string cmp, llvm::Value* lhs, llvm::Value* rhs);
 };
 
 }

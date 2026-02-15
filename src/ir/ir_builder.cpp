@@ -52,5 +52,9 @@ void IRBuilder::createLable(std::string label) {
     os << real_label << ":" << std::endl;
     return; // 标签定义没有返回值
 }
+llvm::Instruction* IRBuilder::createIcmp(std::string cmp, llvm::Value* lhs, llvm::Value* rhs) {
+    llvm::Instruction* result = new llvm::Instruction(newTempReg(), new llvm::Int1Type()); // icmp的结果类型是i1
+    os << "  " << result->toString() << " = icmp " << cmp << " " << lhs->toString() << ", " << rhs->toString() << std::endl;
+    return result;
 
 }
