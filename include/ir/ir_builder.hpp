@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <ostream>
 
-namespace llvm {
+namespace myllvm {
 
 class IRBuilder {
 private:
@@ -18,14 +18,14 @@ public:
     std::string newTempReg();
     std::string getLabel(std::string);
 
-    llvm::Instruction* createBinaryOp(std::string op, llvm::Value* lhs, llvm::Value* rhs);
-    llvm::Instruction* createUnaryOp(std::string op, llvm::Value* operand);
-    llvm::LocalVariable* createAlloca(std::string var_name, llvm::Type* type);
-    llvm::Instruction* createLoad(llvm::Type* type, llvm::Value* ptr);
-    void createStore(llvm::Type* type, llvm::Value* value, llvm::Value* ptr);
+    Instruction* createBinaryOp(std::string op, Value* lhs, Value* rhs);
+    Instruction* createUnaryOp(std::string op, Value* operand);
+    LocalVariable* createAlloca(std::string var_name, Type* type);
+    Instruction* createLoad(Type* type, Value* ptr);
+    void createStore(Type* type, Value* value, Value* ptr);
     void createBranch(std::string label);
     void createLable(std::string label);
-    llvm::Instruction* createIcmp(std::string cmp, llvm::Value* lhs, llvm::Value* rhs);
+    Instruction* createIcmp(std::string cmp, Value* lhs, Value* rhs);
 };
 
 }

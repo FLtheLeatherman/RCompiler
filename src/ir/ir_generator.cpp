@@ -1,6 +1,6 @@
 #include "ir/ir_generator.hpp"
 
-llvm::Type* IRGenerator::getLLVMType(std::string type_name) {
+myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
     if (type_name[0] == '[') {
         std::string num;
         size_t pos = type_name.find_first_of(']') + 1;
@@ -10,30 +10,30 @@ llvm::Type* IRGenerator::getLLVMType(std::string type_name) {
         }
         uint32_t array_size = std::stoul(num);
         std::string element_type_name = type_name.substr(1, type_name.find_first_of(']') - 1);
-        llvm::Type* element_type = getLLVMType(element_type_name);
-        auto array_type = new llvm::ArrayType(element_type, array_size);
+        myllvm::Type* element_type = getLLVMType(element_type_name);
+        auto array_type = new myllvm::ArrayType(element_type, array_size);
         return array_type;
     } else if (type_name == "i32" || type_name == "u32" || type_name == "isize" || type_name == "usize") {
-        auto res = new llvm::Int32Type();
+        auto res = new myllvm::Int32Type();
         return res;
     } else if (type_name == "char") {
-        auto res = new llvm::Int8Type();
+        auto res = new myllvm::Int8Type();
         return res;
     } else if (type_name == "bool") {
-        auto res = new llvm::Int1Type();
+        auto res = new myllvm::Int1Type();
         return res;
     } else if (type_name == "()") {
-        auto res = new llvm::VoidType();
+        auto res = new myllvm::VoidType();
         return res;
     } else if (type_name[0] == '&') {
-        auto res = new llvm::PointerType();
+        auto res = new myllvm::PointerType();
         return res;
     } else {
-        auto res = new llvm::StructType(type_name);
+        auto res = new myllvm::StructType(type_name);
         return res;
     }
 }
-llvm::Value* IRGenerator::getVarValue(std::string var_name) {
+myllvm::Value* IRGenerator::getVarValue(std::string var_name) {
     for (auto it = local_variables_stack.rbegin(); it != local_variables_stack.rend(); ++it) {
         auto& local_vars = *it;
         if (local_vars.find(var_name) != local_vars.end()) {
@@ -47,9 +47,11 @@ llvm::Value* IRGenerator::getVarValue(std::string var_name) {
 }
 
 
-IRGenerator::IRGenerator(Scope *root_scope, llvm::IRBuilder *builder) : current_scope(root_scope), root_scope(root_scope), builder(builder) {}
+IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder)
+    : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder) {}
 
 void IRGenerator::visit(Crate& node) {
+    std::cerr << "Generating IR..." << std::endl;
     for (auto item: node.items) {
         item->accept(this);
     }
@@ -62,11 +64,37 @@ void IRGenerator::visit(Item& node) {
 }
 
 void IRGenerator::visit(Function& node) {
+    std::cerr << "Generating IR for function: " << node.identifier << std::endl;
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
-    
-    // 处理函数
+
+    if (node.function_parameters) {
+        node.function_parameters->accept(this);
+    }
+    if (node.function_return_type) {
+        node.function_return_type->accept(this);
+    }
+    std::cerr << "so far so good???" << std::endl;
+    std::string type_str;
+    if (node.function_return_type) {
+        type_str = node.function_return_type->type->type;
+    } else {
+        type_str = "()"; // 默认返回类型为 unit
+    }
+    myllvm::Type* return_type = getLLVMType(type_str);
+    std::cerr << return_type->toString() << std::endl;
+
+    // 暂未处理 function parameters，先生成无参函数
+    if (node.block_expression) {
+        os << "define " << return_type->toString() << " @" << node.identifier << "() {" << std::endl;
+        os << "entry:" << std::endl;
+        node.block_expression->accept(this);
+    } else {
+        os << "declare " << return_type->toString() << " @" << node.identifier << "()" << std::endl;
+    }
+    os << "  ret void" << std::endl;
+    os << "}" << std::endl;
     
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -240,12 +268,12 @@ void IRGenerator::visit(LetStatement& node) {
         node.pattern_no_top_alt->accept(this);
     }
     auto type_name = node.type->type;
-    llvm::Type* llvm_type = getLLVMType(type_name);
+    myllvm::Type* llvm_type = getLLVMType(type_name);
     auto var_node = std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child);
     auto var_name = var_node->identifier;
     uint32_t var_id = var_counter[var_name]++;
     auto var_real_name = "%" + var_name + "_" + std::to_string(var_id);
-    auto local_var = new llvm::LocalVariable(var_real_name, llvm_type);
+    auto local_var = new myllvm::LocalVariable(var_real_name, llvm_type);
     local_variables_stack.back()[var_name] = local_var;
     auto alloca = builder->createAlloca(var_real_name, llvm_type);
     builder->createStore(llvm_type, node.expression->ir_value, alloca);
@@ -259,6 +287,7 @@ void IRGenerator::visit(ExpressionStatement& node) {
 }
 
 void IRGenerator::visit(Statements& node) {
+    std::cerr << "Generating IR for block with " << node.statements.size() << " statements" << std::endl;
     for (auto& stmt : node.statements) {
         if (stmt) {
             stmt->accept(this);
@@ -270,6 +299,7 @@ void IRGenerator::visit(Expression& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.ir_value = node.child->ir_value; // 将子表达式的 IR 值传递给父表达式
 }
 
 void IRGenerator::visit(ExpressionWithoutBlock& node) {
@@ -305,17 +335,29 @@ void IRGenerator::visit(RawCStringLiteral& node) {
 }
 
 void IRGenerator::visit(IntegerLiteral& node) {
-
+    auto temp_value = node.value;
+    std::string type_string = "";
+    while (!isdigit(temp_value.back())) {
+        type_string = temp_value.back() + type_string;
+        temp_value.pop_back();
+    }
+    if (type_string.empty()) {
+        type_string = "i32"; // 默认类型为 i32
+    }
+    myllvm::Type* llvm_type = getLLVMType(type_string);
+    node.ir_value = new myllvm::Constant(temp_value, llvm_type);
 }
 
 void IRGenerator::visit(BoolLiteral& node) {
-    
+    myllvm::Type* llvm_type = getLLVMType("bool");
+    node.ir_value = new myllvm::Constant(node.value ? "1" : "0", llvm_type);
 }
 
 void IRGenerator::visit(PathExpression& node) {
     if (node.path_in_expression) {
         node.path_in_expression->accept(this);
     }
+    node.ir_value = node.path_in_expression->ir_value; // 将路径表达式的 IR 值传递给父表达式
 }
 
 void IRGenerator::visit(FieldExpression& node) {

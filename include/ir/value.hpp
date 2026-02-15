@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 
-namespace llvm {
+namespace myllvm {
 
 class Value {
 protected:
@@ -47,6 +47,14 @@ private:
     std::string result;
 public:
     Instruction(const std::string& result, Type* type);
+    std::string toString() const override;
+};
+
+class Constant : public Value {
+private:    
+    std::string value;
+public:    
+    Constant(const std::string& value, Type* type);
     std::string toString() const override;
 };
 

@@ -5,7 +5,7 @@
 #include <cstring>
 #include <vector>
 
-namespace llvm {
+namespace myllvm {
 
 class Type {
 public:

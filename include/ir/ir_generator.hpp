@@ -9,21 +9,23 @@
 
 #include <memory>
 #include <unordered_map>
+#include <ostream>
 
 class IRGenerator : public ASTVisitor {
 private:
+    std::ostream &os;
     Scope *current_scope;
     Scope *root_scope;
-    llvm::IRBuilder *builder;
-    std::unordered_map<std::string, llvm::Function*> functions;
-    std::unordered_map<std::string, llvm::GlobalVariable*> global_variables;
-    std::vector<std::unordered_map<std::string, llvm::LocalVariable*>> local_variables_stack; // 用于处理局部变量的作用域
+    myllvm::IRBuilder *builder;
+    std::unordered_map<std::string, myllvm::Function*> functions;
+    std::unordered_map<std::string, myllvm::GlobalVariable*> global_variables;
+    std::vector<std::unordered_map<std::string, myllvm::LocalVariable*>> local_variables_stack; // 用于处理局部变量的作用域
     std::unordered_map<std::string, uint32_t> var_counter; // 用于生成唯一的局部变量名
 
-    llvm::Type* getLLVMType(std::string);
-    llvm::Value* getVarValue(std::string);
+    myllvm::Type* getLLVMType(std::string);
+    myllvm::Value* getVarValue(std::string);
 public:
-    IRGenerator(Scope *root_scope, llvm::IRBuilder *builder);
+    IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder);
     ~IRGenerator() = default;
 
     // 顶层节点

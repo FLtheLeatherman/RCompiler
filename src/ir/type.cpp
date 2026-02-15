@@ -1,6 +1,6 @@
 #include "ir/type.hpp"
 
-namespace llvm {
+namespace myllvm {
 
 VoidType::VoidType() {}
 std::string VoidType::toString() const {

@@ -1,6 +1,6 @@
 #include "ir/value.hpp"
 
-namespace llvm {
+namespace myllvm {
 
 Value::Value(Type* type) : type(type) {}
 Type* Value::getType() const {
@@ -36,6 +36,12 @@ Instruction::Instruction(const std::string& result, Type* type)
     : Value(type), result(result) {}
 std::string Instruction::toString() const {
     return result;
+}
+
+Constant::Constant(const std::string& value, Type* type)
+    : Value(type), value(value) {}
+std::string Constant::toString() const {
+    return value;
 }
 
 }
