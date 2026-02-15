@@ -23,10 +23,12 @@ public:
     LocalVariable* createAlloca(std::string var_name, Type* type);
     Instruction* createLoad(Type* type, Value* ptr);
     void createStore(Type* type, Value* value, Value* ptr);
-    void createBranch(std::string label);
-    void createLable(std::string label);
+    void createLabel(std::string label);
     Instruction* createIcmp(std::string cmp, Value* lhs, Value* rhs);
     void createRet(Value* value);
+    std::pair<std::string, std::string> createBr(Value* condition);
+    void createUncondBr(std::string label);
+    Instruction* createPHI(Type* type, std::vector<std::pair<Value*, std::string>> incoming);
 };
 
 }

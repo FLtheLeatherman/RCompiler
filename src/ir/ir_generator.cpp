@@ -14,20 +14,15 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
         auto array_type = new myllvm::ArrayType(element_type, array_size);
         return array_type;
     } else if (type_name == "i32" || type_name == "u32" || type_name == "isize" || type_name == "usize" || type_name == "integer") {
-        auto res = new myllvm::Int32Type();
-        return res;
+        return context[type_name]; // 直接从上下文中获取整数类型
     } else if (type_name == "char") {
-        auto res = new myllvm::Int8Type();
-        return res;
+        return context[type_name];
     } else if (type_name == "bool") {
-        auto res = new myllvm::Int1Type();
-        return res;
+        return context[type_name];
     } else if (type_name == "()") {
-        auto res = new myllvm::VoidType();
-        return res;
+        return context[type_name];
     } else if (type_name[0] == '&') {
-        auto res = new myllvm::PointerType();
-        return res;
+        return context["&"];
     } else {
         auto res = new myllvm::StructType(type_name);
         return res;
@@ -48,7 +43,17 @@ myllvm::Value* IRGenerator::getVarValue(std::string var_name) {
 
 
 IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder)
-    : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder) {}
+    : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder) {
+    context["i32"] = new myllvm::Int32Type();
+    context["u32"] = new myllvm::Int32Type();
+    context["isize"] = new myllvm::Int32Type();
+    context["usize"] = new myllvm::Int32Type();
+    context["integer"] = new myllvm::Int32Type();
+    context["char"] = new myllvm::Int8Type();
+    context["bool"] = new myllvm::Int1Type();
+    context["()"] = new myllvm::VoidType();
+    context["&"] = new myllvm::PointerType();
+}
 
 void IRGenerator::visit(Crate& node) {
     std::cerr << "Generating IR..." << std::endl;
@@ -99,6 +104,7 @@ void IRGenerator::visit(Function& node) {
         }
         os << ") {" << std::endl;
         os << "entry:" << std::endl;
+        current_basic_block = "entry";
         node.block_expression->accept(this);
         // 如果 block 最后没有 return，也可能是无分号的语句，需要在这里补上 return
         if (return_type->isVoid()) {
@@ -398,13 +404,18 @@ void IRGenerator::visit(DereferenceExpression& node) {
 }
 
 void IRGenerator::visit(BinaryExpression& node) {
-    if (node.lhs) {
-        node.lhs->accept(this);
-    }
-    if (node.rhs) {
-        node.rhs->accept(this);
+    if (node.binary_type != BinaryExpression::AND_AND && node.binary_type != BinaryExpression::OR_OR) {
+        if (node.lhs) {
+            node.lhs->accept(this);
+        }
+        if (node.rhs) {
+            node.rhs->accept(this);
+        }
     }
     auto lhs = node.lhs->ir_value, rhs = node.rhs->ir_value;
+    std::pair<std::string, std::string> labels;
+    std::string true_label, false_label;
+    std::string previous_basic_block = "";
     switch (node.binary_type) {
         case BinaryExpression::PLUS:
             node.ir_value = builder->createBinaryOp("add", lhs, rhs);
@@ -471,10 +482,33 @@ void IRGenerator::visit(BinaryExpression& node) {
             }
             break;
         case BinaryExpression::AND_AND:
-            node.ir_value = builder->createBinaryOp("and", lhs, rhs); // 逻辑与可以用位与实现
+            node.lhs->accept(this);
+            previous_basic_block = current_basic_block;
+            lhs = node.lhs->ir_value;
+            labels = builder->createBr(lhs);
+            true_label = labels.first, false_label = labels.second;
+            current_basic_block = true_label;
+            node.rhs->accept(this);
+            rhs = node.rhs->ir_value;
+            builder->createUncondBr(false_label);
+            builder->createLabel(false_label);
+            node.ir_value = builder->createPHI(context["bool"], {{lhs, previous_basic_block}, {rhs, current_basic_block}});
+            current_basic_block = false_label;
             break;
         case BinaryExpression::OR_OR:
-            node.ir_value = builder->createBinaryOp("or", lhs, rhs); // 逻辑或可以用位或实现
+            node.lhs->accept(this);
+            previous_basic_block = current_basic_block;
+            lhs = node.lhs->ir_value;
+            auto lhs_is_false = builder->createIcmp("eq", lhs, new myllvm::Constant("0", context["bool"]));
+            labels = builder->createBr(lhs_is_false);
+            true_label = labels.first, false_label = labels.second;
+            current_basic_block = true_label;
+            node.rhs->accept(this);
+            rhs = node.rhs->ir_value;
+            builder->createUncondBr(false_label);
+            builder->createLabel(false_label);
+            node.ir_value = builder->createPHI(context["bool"], {{lhs, previous_basic_block}, {rhs, current_basic_block}});
+            current_basic_block = false_label;
             break;
     }
 }

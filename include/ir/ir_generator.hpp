@@ -21,6 +21,8 @@ private:
     std::unordered_map<std::string, myllvm::GlobalVariable*> global_variables;
     std::vector<std::unordered_map<std::string, myllvm::LocalVariable*>> local_variables_stack; // 用于处理局部变量的作用域
     std::unordered_map<std::string, uint32_t> var_counter; // 用于生成唯一的局部变量名
+    std::unordered_map<std::string, myllvm::Type*> context; // 类型缓存，避免重复创建相同的类型
+    std::string current_basic_block; // 当前所在的基本块标签
 
     myllvm::Type* getLLVMType(std::string);
     myllvm::Value* getVarValue(std::string);

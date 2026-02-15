@@ -121,7 +121,7 @@ int main() {
         // std::cout << "wtf?" << std::endl;
     } catch (const std::exception& e) {
         // std::cout << "wtf???" << std::endl;
-        // throw std::runtime_error(e.what());
+        throw std::runtime_error(e.what());
         return 1; // 语法或语义错误
     }
     // std::cout << "wtf??" << std::endl;

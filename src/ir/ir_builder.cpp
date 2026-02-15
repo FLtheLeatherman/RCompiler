@@ -43,13 +43,8 @@ void IRBuilder::createStore(Type* type, Value* value, Value* ptr) {
     os << "  store " << type->toString() << " " << value->toString() << ", ptr " << ptr->toString() << std::endl;
     return; // store指令没有返回值
 }
-void IRBuilder::createBranch(std::string label) {
-    os << "  br label %" << label << std::endl;
-    return; // br指令没有返回值
-}
-void IRBuilder::createLable(std::string label) {
-    auto real_label = getLabel(label);
-    os << real_label << ":" << std::endl;
+void IRBuilder::createLabel(std::string label) {
+    os << label << ":" << std::endl;
     return; // 标签定义没有返回值
 }
 Instruction* IRBuilder::createIcmp(std::string cmp, Value* lhs, Value* rhs) {
@@ -64,6 +59,30 @@ void IRBuilder::createRet(Value* value) {
         os << "  ret " << value->getType()->toString() << " " << value->toString() << std::endl;
     }
     return; // ret指令没有返回值
+}
+std::pair<std::string, std::string> IRBuilder::createBr(Value* condition) {
+    std::string true_label = getLabel("if_true");
+    std::string false_label = getLabel("if_false");
+    os << "  br i1 " << condition->toString() << ", label %" << true_label << ", label %" << false_label << std::endl;
+    createLabel(true_label);
+    return make_pair(true_label, false_label);
+}
+void IRBuilder::createUncondBr(std::string label) {
+    os << "  br label %" << label << std::endl;
+    return; // br指令没有返回值
+}
+Instruction* IRBuilder::createPHI(Type* type, std::vector<std::pair<Value*, std::string>> incoming) {
+    Instruction* result = new Instruction(newTempReg(), type);
+    os << "  " << result->toString() << " = phi " << type->toString() << " ";
+    for (size_t i = 0; i < incoming.size(); i++) {
+        auto& [value, label] = incoming[i];
+        os << "[ " << value->toString() << ", %" << label << " ]";
+        if (i != incoming.size() - 1) {
+            os << ", ";
+        }
+    }
+    os << std::endl;
+    return result;
 }
 
 }
