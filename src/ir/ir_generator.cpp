@@ -287,6 +287,63 @@ void IRGenerator::visit(BinaryExpression& node) {
     if (node.rhs) {
         node.rhs->accept(this);
     }
+    auto lhs = node.lhs->ir_value, rhs = node.rhs->ir_value;
+    switch (node.binary_type) {
+        case BinaryExpression::PLUS:
+            node.ir_value = builder->createBinaryOp("add", lhs, rhs);
+            break;
+        case BinaryExpression::MINUS:
+            node.ir_value = builder->createBinaryOp("sub", lhs, rhs);
+            break;
+        case BinaryExpression::STAR:
+            node.ir_value = builder->createBinaryOp("mul", lhs, rhs);
+            break;
+        case BinaryExpression::SLASH:
+            node.ir_value = builder->createBinaryOp("div", lhs, rhs);
+            break;
+        case BinaryExpression::PERCENT:
+            node.ir_value = builder->createBinaryOp("rem", lhs, rhs);
+            break;
+        case BinaryExpression::CARET:
+            node.ir_value = builder->createBinaryOp("xor", lhs, rhs);
+            break;
+        case BinaryExpression::AND:
+            node.ir_value = builder->createBinaryOp("and", lhs, rhs);
+            break;
+        case BinaryExpression::OR:
+            node.ir_value = builder->createBinaryOp("or", lhs, rhs);
+            break;
+        case BinaryExpression::SHL:
+            node.ir_value = builder->createBinaryOp("shl", lhs, rhs);
+            break;
+        case BinaryExpression::SHR:
+            node.ir_value = builder->createBinaryOp("shr", lhs, rhs);
+            break;
+        case BinaryExpression::EQ_EQ:
+            node.ir_value = builder->createBinaryOp("eq", lhs, rhs);
+            break;
+        case BinaryExpression::NE:
+            node.ir_value = builder->createBinaryOp("ne", lhs, rhs);
+            break;
+        case BinaryExpression::GT:
+            node.ir_value = builder->createBinaryOp("gt", lhs, rhs);
+            break;
+        case BinaryExpression::LT:
+            node.ir_value = builder->createBinaryOp("lt", lhs, rhs);
+            break;
+        case BinaryExpression::GE:
+            node.ir_value = builder->createBinaryOp("ge", lhs, rhs);
+            break;
+        case BinaryExpression::LE:
+            node.ir_value = builder->createBinaryOp("le", lhs, rhs);
+            break;
+        case BinaryExpression::AND_AND:
+            node.ir_value = builder->createBinaryOp("and", lhs, rhs); // 逻辑与可以用位与实现
+            break;
+        case BinaryExpression::OR_OR:
+            node.ir_value = builder->createBinaryOp("or", lhs, rhs); // 逻辑或可以用位或实现
+            break;
+    }
 }
 
 void IRGenerator::visit(AssignmentExpression& node) {
