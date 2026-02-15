@@ -13,7 +13,7 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
         myllvm::Type* element_type = getLLVMType(element_type_name);
         auto array_type = new myllvm::ArrayType(element_type, array_size);
         return array_type;
-    } else if (type_name == "i32" || type_name == "u32" || type_name == "isize" || type_name == "usize") {
+    } else if (type_name == "i32" || type_name == "u32" || type_name == "isize" || type_name == "usize" || type_name == "integer") {
         auto res = new myllvm::Int32Type();
         return res;
     } else if (type_name == "char") {
@@ -69,31 +69,44 @@ void IRGenerator::visit(Function& node) {
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
 
-    if (node.function_parameters) {
-        node.function_parameters->accept(this);
-    }
     if (node.function_return_type) {
         node.function_return_type->accept(this);
     }
-    std::cerr << "so far so good???" << std::endl;
+    // std::cerr << "so far so good???" << std::endl;
     std::string type_str;
     if (node.function_return_type) {
-        type_str = node.function_return_type->type->type;
+        auto path_ident_segment = std::dynamic_pointer_cast<PathIdentSegment>(node.function_return_type->type->child);
+        type_str = path_ident_segment->identifier; // 获取返回类型的字符串表示
     } else {
         type_str = "()"; // 默认返回类型为 unit
     }
+    std::cerr << "Return type string: " << type_str << std::endl;
     myllvm::Type* return_type = getLLVMType(type_str);
-    std::cerr << return_type->toString() << std::endl;
-
-    // 暂未处理 function parameters，先生成无参函数
+    bool is_large = return_type->isStruct() || return_type->isArray();
+    auto function_val = new myllvm::Function(node.identifier,return_type, is_large);
+    functions[node.identifier] = function_val;
     if (node.block_expression) {
-        os << "define " << return_type->toString() << " @" << node.identifier << "() {" << std::endl;
+        os << "define " << return_type->toString() << " @" << node.identifier << "(";
+        // 处理函数参数
+        // 有点困难
+        if (!is_large) {
+            
+        } else {
+
+        }
+        if (node.function_parameters) {
+            node.function_parameters->accept(this);
+        }
+        os << ") {" << std::endl;
         os << "entry:" << std::endl;
         node.block_expression->accept(this);
+        // 如果 block 最后没有 return，也可能是无分号的语句，需要在这里补上 return
+        if (return_type->isVoid()) {
+            builder->createRet(nullptr); // void 函数直接返回
+        }
     } else {
         os << "declare " << return_type->toString() << " @" << node.identifier << "()" << std::endl;
     }
-    os << "  ret void" << std::endl;
     os << "}" << std::endl;
     
     current_scope = prev_scope;
@@ -430,30 +443,28 @@ void IRGenerator::visit(BinaryExpression& node) {
             node.ir_value = builder->createIcmp("ne", lhs, rhs);
             break;
         case BinaryExpression::GT:
-            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+            if (node.lhs->type == "i32" || node.lhs->type == "isize" || node.rhs->type == "i32" || node.rhs->type == "isize") {
                 node.ir_value = builder->createIcmp("sgt", lhs, rhs); // 有符号比较
             } else {
                 node.ir_value = builder->createIcmp("ugt", lhs, rhs); // 无符号比较
             }
             break;
         case BinaryExpression::LT:
-            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+            if (node.lhs->type == "i32" || node.lhs->type == "isize" || node.rhs->type == "i32" || node.rhs->type == "isize") {
                 node.ir_value = builder->createIcmp("slt", lhs, rhs); // 有符号比较
             } else {
                 node.ir_value = builder->createIcmp("ult", lhs, rhs); // 无符号比较
             }
-            node.ir_value = builder->createIcmp("lt", lhs, rhs);
             break;
         case BinaryExpression::GE:
-            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+            if (node.lhs->type == "i32" || node.lhs->type == "isize" || node.rhs->type == "i32" || node.rhs->type == "isize") {
                 node.ir_value = builder->createIcmp("sge", lhs, rhs); // 有符号比较
             } else {
                 node.ir_value = builder->createIcmp("uge", lhs, rhs); // 无符号比较
             }
-            node.ir_value = builder->createIcmp("ge", lhs, rhs);
             break;
         case BinaryExpression::LE:
-            if (node.lhs->type == "i32" || node.lhs->type == "isize") {
+            if (node.lhs->type == "i32" || node.lhs->type == "isize" || node.rhs->type == "i32" || node.rhs->type == "isize") {
                 node.ir_value = builder->createIcmp("sle", lhs, rhs); // 有符号比较
             } else {
                 node.ir_value = builder->createIcmp("ule", lhs, rhs); // 无符号比较
@@ -616,6 +627,10 @@ void IRGenerator::visit(ContinueExpression& node) {
 void IRGenerator::visit(ReturnExpression& node) {
     if (node.expression) {
         node.expression->accept(this);
+        builder->createRet(node.expression->ir_value);
+    } else {
+        auto void_val = new myllvm::Constant("", getLLVMType("()"));
+        builder->createRet(void_val);
     }
 }
 
@@ -709,6 +724,10 @@ void IRGenerator::visit(PathInExpression& node) {
 
 void IRGenerator::visit(PathIdentSegment& node) {
     if (node.path_type == 0) {
-        node.ir_value = getVarValue(node.identifier);
+        auto var_value = getVarValue(node.identifier);
+        if (var_value != nullptr) {
+            auto load = builder->createLoad(getLLVMType(node.type), getVarValue(node.identifier));
+            node.ir_value = load;
+        }
     }
 }

@@ -125,7 +125,7 @@ int main() {
         return 1; // 语法或语义错误
     }
     // std::cout << "wtf??" << std::endl;
-    std::cout << "target triple = \"x86_64-pc-linux-gnu\"" << std::endl;
+    // std::cout << "target triple = \"x86_64-pc-linux-gnu\"" << std::endl;
     myllvm::IRBuilder ir_builder(std::cout);
     IRGenerator ir_generator(std::cout, root_scope.get(), &ir_builder);
     ir_generator.visit(*root);

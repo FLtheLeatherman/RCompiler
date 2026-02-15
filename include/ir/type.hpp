@@ -11,12 +11,16 @@ class Type {
 public:
     virtual ~Type() = default;
     virtual std::string toString() const = 0;
+    virtual bool isVoid() const;
+    virtual bool isStruct() const;
+    virtual bool isArray() const;
 };
 
 class VoidType : public Type {
 public:
     VoidType();
     std::string toString() const override;
+    bool isVoid() const override;
 };
 
 class IntegerType : public Type {
@@ -53,6 +57,7 @@ private:
 public:
     StructType(std::string name);
     std::string toString() const override;
+    bool isStruct() const override;
 };
 
 class ArrayType : public Type {
@@ -62,6 +67,7 @@ private:
 public:
     ArrayType(Type* element_type, size_t num_elements);
     std::string toString() const override;
+    bool isArray() const override;
 };
 
 class PointerType : public Type {

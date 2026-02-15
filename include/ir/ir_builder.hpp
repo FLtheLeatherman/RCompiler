@@ -26,6 +26,7 @@ public:
     void createBranch(std::string label);
     void createLable(std::string label);
     Instruction* createIcmp(std::string cmp, Value* lhs, Value* rhs);
+    void createRet(Value* value);
 };
 
 }

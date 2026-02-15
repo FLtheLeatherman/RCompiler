@@ -6,15 +6,18 @@ Value::Value(Type* type) : type(type) {}
 Type* Value::getType() const {
     return type;
 }
+void Value::setType(Type* type) {
+    this->type = type;
+}
 std::string Value::toString() const {
     return "";
 }
 
-Function::Function(const std::string& name, Type* type, bool is_return_struct_or_array) 
-    : Value(type), function_name(name), is_return_struct_or_array(is_return_struct_or_array) {}
+Function::Function(const std::string& name, Type* type, bool is_large) 
+    : Value(type), function_name(name), is_large(is_large) {}
 
-bool Function::isReturnStructOrArray() const {
-    return is_return_struct_or_array;
+bool Function::isLarge() const {
+    return is_large;
 }
 std::string Function::toString() const {
     return function_name;

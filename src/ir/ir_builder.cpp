@@ -6,7 +6,7 @@ IRBuilder::IRBuilder(std::ostream &output_stream) : os(output_stream) {
     temp_count = 0;
 }
 std::string IRBuilder::newTempReg() {
-    return "%t" + std::to_string(temp_count++);
+    return "%" + std::to_string(temp_count++);
 }
 std::string IRBuilder::getLabel(std::string label) {
     if (label_count.find(label) == label_count.end()) {
@@ -17,13 +17,13 @@ std::string IRBuilder::getLabel(std::string label) {
 
 Instruction* IRBuilder::createBinaryOp(std::string op, Value* lhs, Value* rhs) {
     Instruction* result = new Instruction(newTempReg(), lhs->getType()); // 假设结果类型与操作数相同
-    os << "  " << result->toString() << " = " << op << " " << lhs->toString() << ", " << rhs->toString() << std::endl;
+    os << "  " << result->toString() << " = " << op << " " << lhs->getType()->toString() << " " << lhs->toString() << ", " << rhs->toString() << std::endl;
     return result;
 }
 Instruction* IRBuilder::createUnaryOp(std::string op, Value* operand) {
     Instruction* result = new Instruction(newTempReg(), operand->getType()); // 假设结果类型与操作数相同
     if (op == "-") {
-        os << "  " << result->toString() << " = " << op << "i32, 0, " << operand->toString() << std::endl;
+        os << "  " << result->toString() << " = " << op << " " << operand->getType()->toString() << " 0, " << operand->toString() << std::endl;
     } else {
         throw std::runtime_error("Unsupported unary operator: " + op);
     }
@@ -54,8 +54,16 @@ void IRBuilder::createLable(std::string label) {
 }
 Instruction* IRBuilder::createIcmp(std::string cmp, Value* lhs, Value* rhs) {
     Instruction* result = new Instruction(newTempReg(), new Int1Type()); // icmp的结果类型是i1
-    os << "  " << result->toString() << " = icmp " << cmp << " " << lhs->toString() << ", " << rhs->toString() << std::endl;
+    os << "  " << result->toString() << " = icmp " << cmp << " " << lhs->getType()->toString() << " " << lhs->toString() << ", " << rhs->toString() << std::endl;
     return result;
+}
+void IRBuilder::createRet(Value* value) {
+    if (value == nullptr) {
+        os << "  ret void" << std::endl;
+    } else {
+        os << "  ret " << value->getType()->toString() << " " << value->toString() << std::endl;
+    }
+    return; // ret指令没有返回值
 }
 
 }

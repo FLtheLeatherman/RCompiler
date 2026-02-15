@@ -13,16 +13,17 @@ public:
     Value(Type* type);
     ~Value() = default;
     virtual Type* getType() const;
+    void setType(Type* type);
     virtual std::string toString() const;
 };
 
 class Function : public Value {
 private:
     std::string function_name;
-    bool is_return_struct_or_array;
+    bool is_large; // 是否为返回结构体或数组的函数
 public:
-    Function(const std::string& name, Type* type, bool is_return_struct_or_array);
-    bool isReturnStructOrArray() const;
+    Function(const std::string& name, Type* type, bool is_large);
+    bool isLarge() const;
     std::string toString() const override;
 };
 
