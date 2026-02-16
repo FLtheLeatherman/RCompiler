@@ -85,10 +85,12 @@ void IRGenerator::visit(Function& node) {
     } else {
         type_str = "()"; // 默认返回类型为 unit
     }
-    std::cerr << "Return type string: " << type_str << std::endl;
+    // std::cerr << "Return type string: " << type_str << std::endl;
     myllvm::Type* return_type = getLLVMType(type_str);
+    // std::cerr << "LLVM return type: " << return_type->toString() << std::endl;
+    // std::cerr << "Is return type void? " << (return_type->isVoid() ? "Yes" : "No") << std::endl;
     bool is_large = return_type->isStruct() || return_type->isArray();
-    auto function_val = new myllvm::Function(node.identifier,return_type, is_large);
+    auto function_val = new myllvm::Function(node.identifier, return_type, is_large);
     functions[node.identifier] = function_val;
     if (node.block_expression) {
         os << "define " << return_type->toString() << " @" << node.identifier << "(";
@@ -105,10 +107,16 @@ void IRGenerator::visit(Function& node) {
         os << ") {" << std::endl;
         os << "entry:" << std::endl;
         current_basic_block = "entry";
+        current_function_has_return = false;
         node.block_expression->accept(this);
         // 如果 block 最后没有 return，也可能是无分号的语句，需要在这里补上 return
-        if (return_type->isVoid()) {
-            builder->createRet(nullptr); // void 函数直接返回
+        if (!current_function_has_return) {
+            if (return_type->isVoid()) {
+                builder->createRet(nullptr); // void 函数直接返回
+            } else {
+                node.ir_value = node.block_expression->ir_value; // 将 block 的结果作为返回值
+                builder->createRet(node.block_expression->ir_value);
+            }
         }
     } else {
         os << "declare " << return_type->toString() << " @" << node.identifier << "()" << std::endl;
@@ -274,6 +282,7 @@ void IRGenerator::visit(Statement& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.ir_value = node.child->ir_value; // 将子语句的 IR 值传递给父节点
 }
 
 void IRGenerator::visit(LetStatement& node) {
@@ -303,6 +312,7 @@ void IRGenerator::visit(ExpressionStatement& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.ir_value = node.child->ir_value; // 将表达式语句的 IR 值传递给父节点
 }
 
 void IRGenerator::visit(Statements& node) {
@@ -311,6 +321,9 @@ void IRGenerator::visit(Statements& node) {
         if (stmt) {
             stmt->accept(this);
         }
+    }
+    if (!node.statements.empty()) {
+        node.ir_value = node.statements.back()->ir_value; // 将 block 中最后一个语句的 IR 值作为 block 的 IR 值
     }
 }
 
@@ -325,12 +338,20 @@ void IRGenerator::visit(ExpressionWithoutBlock& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.ir_value = node.child->ir_value; // 将子表达式的 IR 值传递给父表达式
+    // if (std::dynamic_pointer_cast<IntegerLiteral>(node.child)) {
+    //     std::cerr << "ExpressionWithoutBlock contains a IntegerLiteral" << std::endl;
+    // } else {
+    //     std::cerr << "ExpressionWithoutBlock does not contain a IntegerLiteral" << std::endl;
+    // }
+    // std::cerr << "ExpressionWithoutBlock IR value is void? " << node.ir_value->getType()->isVoid() << std::endl;
 }
 
 void IRGenerator::visit(ExpressionWithBlock& node) {
     if (node.child) {
         node.child->accept(this);
     }
+    node.ir_value = node.child->ir_value; // 将子表达式的 IR 值传递给父表达式
 }
 
 void IRGenerator::visit(CharLiteral& node) {
@@ -642,6 +663,8 @@ void IRGenerator::visit(BlockExpression& node) {
     if (node.statements) {
         node.statements->accept(this);
     }
+
+    node.ir_value = node.statements->ir_value; // 将 block 中最后一个语句的 IR 值作为 block 的 IR 值
     
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -651,11 +674,29 @@ void IRGenerator::visit(IfExpression& node) {
     if (node.condition) {
         node.condition->accept(this);
     }
+    std::cerr << "Generating IR for if expression" << std::endl;
+    auto [true_label, false_label] = builder->createBr(node.condition->ir_value);
+    std::cerr << "True label: " << true_label << ", False label: " << false_label << std::endl;
+    auto end_label = builder->getLabel("if_end");
+    current_basic_block = true_label;
     if (node.then_block) {
         node.then_block->accept(this);
     }
+    builder->createUncondBr(end_label);
+    builder->createLabel(false_label);
+    current_basic_block = false_label;
     if (node.else_branch) {
         node.else_branch->accept(this);
+    }
+    builder->createUncondBr(end_label);
+    builder->createLabel(end_label);
+    current_basic_block = end_label;
+    if (node.type != "()") {
+        if (node.else_branch) {
+            node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {node.else_branch->ir_value, false_label}});
+        } else {
+            node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {nullptr, false_label}});
+        }
     }
 }
 
@@ -718,6 +759,7 @@ void IRGenerator::visit(Condition& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    node.ir_value = node.expression->ir_value; // 将条件表达式的 IR 值传递给父节点
 }
 
 void IRGenerator::visit(ArrayElements& node) {

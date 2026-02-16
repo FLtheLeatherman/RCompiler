@@ -4,7 +4,7 @@
 #include "value.hpp"
 #include <cstdint>
 #include <unordered_map>
-#include <ostream>
+#include <iostream>
 
 namespace myllvm {
 

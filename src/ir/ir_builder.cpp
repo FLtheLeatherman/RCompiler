@@ -63,6 +63,7 @@ void IRBuilder::createRet(Value* value) {
 std::pair<std::string, std::string> IRBuilder::createBr(Value* condition) {
     std::string true_label = getLabel("if_true");
     std::string false_label = getLabel("if_false");
+    // std::cerr << "Creating conditional branch with condition: " << condition->toString() << std::endl;
     os << "  br i1 " << condition->toString() << ", label %" << true_label << ", label %" << false_label << std::endl;
     createLabel(true_label);
     return make_pair(true_label, false_label);

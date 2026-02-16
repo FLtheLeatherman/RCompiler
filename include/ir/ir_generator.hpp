@@ -9,7 +9,7 @@
 
 #include <memory>
 #include <unordered_map>
-#include <ostream>
+#include <iostream>
 
 class IRGenerator : public ASTVisitor {
 private:
@@ -23,6 +23,7 @@ private:
     std::unordered_map<std::string, uint32_t> var_counter; // 用于生成唯一的局部变量名
     std::unordered_map<std::string, myllvm::Type*> context; // 类型缓存，避免重复创建相同的类型
     std::string current_basic_block; // 当前所在的基本块标签
+    bool current_function_has_return; // 当前函数是否已经有 return 语句
 
     myllvm::Type* getLLVMType(std::string);
     myllvm::Value* getVarValue(std::string);
