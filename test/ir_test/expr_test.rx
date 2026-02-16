@@ -1,0 +1,5 @@
+fn main() {
+    let a: i32 = 1;
+    let b: i32 = 2 * a + 1i32;
+    exit(0);
+}
