@@ -374,6 +374,7 @@ void IRGenerator::visit(BoolLiteral& node) {
 
 void IRGenerator::visit(PathExpression& node) {
     if (node.path_in_expression) {
+        node.path_in_expression->is_ptr = node.is_ptr; // 将路径表达式的 is_ptr 属性传递给子表达式
         node.path_in_expression->accept(this);
     }
     node.ir_value = node.path_in_expression->ir_value; // 将路径表达式的 IR 值传递给父表达式
@@ -515,20 +516,65 @@ void IRGenerator::visit(BinaryExpression& node) {
 
 void IRGenerator::visit(AssignmentExpression& node) {
     if (node.lhs) {
+        node.lhs->is_ptr = true;
         node.lhs->accept(this);
     }
     if (node.rhs) {
         node.rhs->accept(this);
     }
+
+    auto lhs = node.lhs->ir_value;
+    auto rhs = node.rhs->ir_value;
+    builder->createStore(lhs->getType(), rhs, lhs);
+    node.ir_value = new myllvm::Instruction("()", context["void"]);
 }
 
 void IRGenerator::visit(CompoundAssignmentExpression& node) {
     if (node.lhs) {
+        node.lhs->is_ptr = true;
         node.lhs->accept(this);
     }
     if (node.rhs) {
         node.rhs->accept(this);
     }
+    auto lhs = node.lhs->ir_value;
+    auto rhs = node.rhs->ir_value;
+    auto lhs_value = builder->createLoad(lhs->getType(), lhs);
+    myllvm::Value* result;
+    switch (node.type) {
+        case CompoundAssignmentExpression::PLUS_EQ:
+            result = builder->createBinaryOp("add", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::MINUS_EQ:
+            result = builder->createBinaryOp("sub", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::STAR_EQ:
+            result = builder->createBinaryOp("mul", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::SLASH_EQ:
+            result = builder->createBinaryOp("div", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::PERCENT_EQ:
+            result = builder->createBinaryOp("rem", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::CARET_EQ:
+            result = builder->createBinaryOp("xor", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::AND_EQ:
+            result = builder->createBinaryOp("and", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::OR_EQ:
+            result = builder->createBinaryOp("or", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::SHL_EQ:
+            result = builder->createBinaryOp("shl", lhs_value, rhs);
+            break;
+        case CompoundAssignmentExpression::SHR_EQ:
+            result = builder->createBinaryOp("shr", lhs_value, rhs);
+            break;
+    }
+    builder->createStore(lhs->getType(), result, lhs);
+    node.ir_value = new myllvm::Instruction("()", context["void"]);
 }
 
 void IRGenerator::visit(TypeCastExpression& node) {
@@ -746,14 +792,25 @@ void IRGenerator::visit(UnitType& node) {
 }
 
 void IRGenerator::visit(PathInExpression& node) {
-    if (node.segment1) {
-        node.segment1->accept(this);
+    // if (node.segment1) {
+    //     node.segment1->accept(this);
+    // }
+    // if (node.segment2) {
+    //     node.segment2->accept(this);
+    // }
+    auto str = node.segment1->identifier + (node.segment2 ? (".." + node.segment2->identifier) : "");
+    if (node.is_ptr) {
+        auto var_value = getVarValue(str);
+        if (var_value != nullptr) {
+            node.ir_value = var_value; // 直接使用变量的地址
+        }
+    } else {
+        auto var_value = getVarValue(str);
+        if (var_value != nullptr) {
+            auto load = builder->createLoad(getLLVMType(node.type), var_value);
+            node.ir_value = load; // 加载变量的值
+        }
     }
-    if (node.segment2) {
-        node.segment2->accept(this);
-    }
-    node.ir_value = node.segment1->ir_value;
-    // 先不管 segment2，后续如果需要处理方法调用等情况再来完善
 }
 
 void IRGenerator::visit(PathIdentSegment& node) {

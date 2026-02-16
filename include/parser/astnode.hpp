@@ -13,6 +13,7 @@ class ASTNode {
 public:
     bool mutability;
     std::string type;
+    bool is_ptr; // 需要获取 ptr 还是 value
     myllvm::Value* ir_value; // 用于存储 IR 生成过程中对应的值
     ASTNode() = default;
     virtual ~ASTNode() = default;
