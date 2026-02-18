@@ -10,6 +10,9 @@
 #include <memory>
 #include <unordered_map>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <cstring>
 
 class IRGenerator : public ASTVisitor {
 private:
@@ -24,6 +27,10 @@ private:
     std::unordered_map<std::string, myllvm::Type*> context; // 类型缓存，避免重复创建相同的类型
     std::string current_basic_block; // 当前所在的基本块标签
     bool current_function_has_return; // 当前函数是否已经有 return 语句
+    std::vector<std::string> break_labels_stack; // 用于处理 break 语句的标签栈
+    std::vector<std::string> continue_labels_stack; // 用于处理 continue 语句的标签栈
+    std::vector<std::vector<std::pair<myllvm::Value*, std::string>>> phi_nodes_stack; // 用于处理 PHI 节点的栈
+    std::unordered_map<std::string, bool> label_has_br_or_ret; // 记录每个标签是否已经有分支或返回指令
 
     myllvm::Type* getLLVMType(std::string);
     myllvm::Value* getVarValue(std::string);

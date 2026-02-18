@@ -537,6 +537,7 @@ void IRGenerator::visit(BinaryExpression& node) {
 
 void IRGenerator::visit(AssignmentExpression& node) {
     if (node.lhs) {
+        // std::cerr << "!!" << std::endl;
         node.lhs->is_ptr = true;
         node.lhs->accept(this);
     }
@@ -552,6 +553,7 @@ void IRGenerator::visit(AssignmentExpression& node) {
 
 void IRGenerator::visit(CompoundAssignmentExpression& node) {
     if (node.lhs) {
+        // std::cerr << "??" << std::endl;
         node.lhs->is_ptr = true;
         node.lhs->accept(this);
     }
@@ -682,13 +684,13 @@ void IRGenerator::visit(IfExpression& node) {
     if (node.then_block) {
         node.then_block->accept(this);
     }
-    builder->createUncondBr(end_label);
+    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(end_label);
     builder->createLabel(false_label);
     current_basic_block = false_label;
     if (node.else_branch) {
         node.else_branch->accept(this);
     }
-    builder->createUncondBr(end_label);
+    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(end_label);
     builder->createLabel(end_label);
     current_basic_block = end_label;
     if (node.type != "()") {
@@ -703,6 +705,7 @@ void IRGenerator::visit(IfExpression& node) {
 void IRGenerator::visit(LoopExpression& node) {
     if (node.child) {
         node.child->accept(this);
+        node.ir_value = node.child->ir_value; // 将循环表达式的 IR 值传递给父节点
     }
 }
 
@@ -711,9 +714,30 @@ void IRGenerator::visit(InfiniteLoopExpression& node) {
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
 
+    auto loop_start_label = builder->getLabel("loop_start");
+    auto loop_end_label = builder->getLabel("loop_end");
+    continue_labels_stack.push_back(loop_start_label);
+    break_labels_stack.push_back(loop_end_label);
+    phi_nodes_stack.push_back({}); // 为新的循环创建一个空的 PHI 节点列表
+    builder->createUncondBr(loop_start_label);
+    builder->createLabel(loop_start_label);
+    current_basic_block = loop_start_label;
+
     if (node.block_expression) {
         node.block_expression->accept(this);
     }
+
+    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(loop_start_label);
+    builder->createLabel(loop_end_label);
+    current_basic_block = loop_end_label;
+    if (!phi_nodes_stack.back().empty()) {
+        node.ir_value = builder->createPHI(getLLVMType(node.type), phi_nodes_stack.back()); // 循环的返回值通过 PHI 节点来处理，初始时没有任何 incoming value
+    } else {
+        node.ir_value = nullptr; // 如果循环内没有任何 break 语句，循环的 IR 值为 nullptr
+    }
+    continue_labels_stack.pop_back();
+    break_labels_stack.pop_back();
+    phi_nodes_stack.pop_back(); // 循环结束，弹出 PHI 节点列表
 
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -724,12 +748,36 @@ void IRGenerator::visit(PredicateLoopExpression& node) {
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
 
+    auto loop_cond_label = builder->getLabel("loop_cond");
+    builder->createUncondBr(loop_cond_label);
+    builder->createLabel(loop_cond_label);
+    current_basic_block = loop_cond_label;
+
     if (node.condition) {
         node.condition->accept(this);
     }
+
+    auto [loop_start_label, loop_end_label] = builder->createBr(node.condition->ir_value, "loop_start", "loop_end");
+    current_basic_block = loop_start_label;
+    continue_labels_stack.push_back(loop_cond_label);
+    break_labels_stack.push_back(loop_end_label);
+    phi_nodes_stack.push_back({}); // 为新的循环创建一个空的 PHI 节点列表
+    
     if (node.block_expression) {
         node.block_expression->accept(this);
     }
+
+    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(loop_cond_label);
+    builder->createLabel(loop_end_label);
+    current_basic_block = loop_end_label;
+    if (!phi_nodes_stack.back().empty()) {
+        node.ir_value = builder->createPHI(getLLVMType(node.type), phi_nodes_stack.back()); // 循环的返回值通过 PHI 节点来处理，初始时没有任何 incoming value
+    } else {
+        node.ir_value = nullptr; // 如果循环内没有任何 break 语句，循环的 IR 值为 nullptr
+    }
+    continue_labels_stack.pop_back();
+    break_labels_stack.pop_back();
+    phi_nodes_stack.pop_back(); // 循环结束，弹出 PHI 节点列表
 
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -738,11 +786,15 @@ void IRGenerator::visit(PredicateLoopExpression& node) {
 void IRGenerator::visit(BreakExpression& node) {
     if (node.expression) {
         node.expression->accept(this);
+        phi_nodes_stack.back().push_back({node.expression->ir_value, current_basic_block}); // 将 break 的返回值和当前基本块添加到 PHI 节点列表中 
     }
+    builder->createUncondBr(break_labels_stack.back());
+    label_has_br_or_ret[current_basic_block] = true; // 标记当前基本块已经有分支指令，后续不再添加无条件分支
 }
 
 void IRGenerator::visit(ContinueExpression& node) {
-
+    builder->createUncondBr(continue_labels_stack.back());
+    label_has_br_or_ret[current_basic_block] = true; // 标记当前基本块已经有分支指令，后续不再添加无条件分支
 }
 
 void IRGenerator::visit(ReturnExpression& node) {
@@ -842,6 +894,7 @@ void IRGenerator::visit(PathInExpression& node) {
     // }
     auto str = node.segment1->identifier + (node.segment2 ? (".." + node.segment2->identifier) : "");
     if (node.is_ptr) {
+        std::cerr << "is_ptr is true for PathInExpression with path: " << str << std::endl;
         auto var_value = getVarValue(str);
         if (var_value != nullptr) {
             node.ir_value = var_value; // 直接使用变量的地址
