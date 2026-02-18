@@ -1,0 +1,8 @@
+fn add(x: i32, y: i32, z: &mut i32) -> i32 {
+    *z = x + y;
+    x + y
+}
+fn sub(a: i32, b: i32) -> i32;
+fn main() {
+    exit(0);
+}

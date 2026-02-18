@@ -1008,6 +1008,7 @@ std::shared_ptr<PatternNoTopAlt> Parser::parsePatternNoTopAlt() {
         return std::make_shared<PatternNoTopAlt>(std::move(pattern));
     } catch (...) {
         auto pattern = parseReferencePattern();
+        exit(-1); // 数据保证没有 ReferencePattern，所以直接退出，如果有需要可以改成抛异常
         return std::make_shared<PatternNoTopAlt>(std::move(pattern));
     }
 }

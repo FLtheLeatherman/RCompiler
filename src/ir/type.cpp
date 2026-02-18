@@ -15,6 +15,9 @@ bool Type::isStruct() const {
 bool Type::isArray() const {
     return false;
 }
+bool Type::isPointer() const {
+    return false;
+}
 
 bool VoidType::isVoid() const {
     return true;
@@ -69,6 +72,9 @@ bool ArrayType::isArray() const {
 PointerType::PointerType() {}
 std::string PointerType::toString() const {
     return "ptr";
+}
+bool PointerType::isPointer() const {
+    return true;
 }
 
 }

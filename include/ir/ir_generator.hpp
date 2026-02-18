@@ -13,6 +13,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <cassert>
 
 class IRGenerator : public ASTVisitor {
 private:
@@ -31,6 +32,7 @@ private:
     std::vector<std::string> continue_labels_stack; // 用于处理 continue 语句的标签栈
     std::vector<std::vector<std::pair<myllvm::Value*, std::string>>> phi_nodes_stack; // 用于处理 PHI 节点的栈
     std::unordered_map<std::string, bool> label_has_br_or_ret; // 记录每个标签是否已经有分支或返回指令
+    std::vector<myllvm::LocalVariable*> func_param;
 
     myllvm::Type* getLLVMType(std::string);
     myllvm::Value* getVarValue(std::string);

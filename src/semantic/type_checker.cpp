@@ -118,6 +118,10 @@ void TypeChecker::visit(Function& node) {
         throw std::runtime_error("Semantic: Function main should return ()");
     }
 
+    if (node.function_parameters) {
+        node.function_parameters->accept(this);
+    }
+
     if (node.block_expression && current_scope) {
         node.block_expression->accept(this);
     }

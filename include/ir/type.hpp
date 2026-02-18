@@ -14,6 +14,7 @@ public:
     virtual bool isVoid() const;
     virtual bool isStruct() const;
     virtual bool isArray() const;
+    virtual bool isPointer() const;
 };
 
 class VoidType : public Type {
@@ -74,6 +75,7 @@ class PointerType : public Type {
 public:
     PointerType();
     std::string toString() const override;
+    bool isPointer() const override;
 };
 
 }

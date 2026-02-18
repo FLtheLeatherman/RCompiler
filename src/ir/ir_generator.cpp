@@ -80,12 +80,15 @@ void IRGenerator::visit(Function& node) {
     // std::cerr << "so far so good???" << std::endl;
     std::string type_str;
     if (node.function_return_type) {
-        auto path_ident_segment = std::dynamic_pointer_cast<PathIdentSegment>(node.function_return_type->type->child);
-        type_str = path_ident_segment->identifier; // 获取返回类型的字符串表示
+        if (auto path_ident_segment = std::dynamic_pointer_cast<PathIdentSegment>(node.function_return_type->type->child)) {
+            type_str = path_ident_segment->identifier; // 获取返回类型的字符串表示
+        } else {
+            type_str = "()";
+        }
     } else {
         type_str = "()"; // 默认返回类型为 unit
     }
-    // std::cerr << "Return type string: " << type_str << std::endl;
+    std::cerr << "Return type string: " << type_str << std::endl;
     myllvm::Type* return_type = getLLVMType(type_str);
     // std::cerr << "LLVM return type: " << return_type->toString() << std::endl;
     // std::cerr << "Is return type void? " << (return_type->isVoid() ? "Yes" : "No") << std::endl;
@@ -94,18 +97,40 @@ void IRGenerator::visit(Function& node) {
     functions[node.identifier] = function_val;
     if (node.block_expression) {
         os << "define " << return_type->toString() << " @" << node.identifier << "(";
-        // 处理函数参数
-        // 有点困难
-        if (!is_large) {
-            
-        } else {
-
+    } else {
+        os << "declare " << return_type->toString() << " @" << node.identifier << "(";
+    }
+    // 处理函数参数
+    // 有点困难
+    // 先不管 is large 了，统统暴力处理
+    func_param.clear();
+    if (node.function_parameters) {
+        node.function_parameters->accept(this);
+    }
+    for (size_t i = 0; i < func_param.size(); ++i) {
+        os << func_param[i]->getType()->toString() << " " << func_param[i]->toString();
+        if (i != func_param.size() - 1) {
+            os << ", ";
         }
-        if (node.function_parameters) {
-            node.function_parameters->accept(this);
-        }
-        os << ") {" << std::endl;
+    }
+    os << ")";
+    if (node.block_expression) {
+        os << " {" << std::endl;
         os << "entry:" << std::endl;
+        for (size_t i = 0; i < func_param.size(); ++i) {
+            if (func_param[i]->getType()->isPointer()) {
+                // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
+                auto var_name = func_param[i]->toString().substr(1);
+                local_variables_stack.back()[var_name] = func_param[i];
+                continue;
+            }
+            auto var_name = func_param[i]->toString().substr(1);
+            auto num = var_counter[var_name]++;
+            auto real_value = new myllvm::LocalVariable("%" + var_name + "." + std::to_string(num), func_param[i]->getType());
+            builder->createAlloca(real_value->toString(), real_value->getType());
+            builder->createStore(func_param[i]->getType(), func_param[i], real_value);
+            local_variables_stack.back()[var_name] = real_value; // 将参数的 Alloca 存入局部变量表，后续访问该参数时使用这个 Alloca 来加载值
+        }
         current_basic_block = "entry";
         current_function_has_return = false;
         node.block_expression->accept(this);
@@ -118,10 +143,10 @@ void IRGenerator::visit(Function& node) {
                 builder->createRet(node.block_expression->ir_value);
             }
         }
+        os << "}" << std::endl;
     } else {
-        os << "declare " << return_type->toString() << " @" << node.identifier << "()" << std::endl;
+        os << std::endl;
     }
-    os << "}" << std::endl;
     
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -238,6 +263,11 @@ void IRGenerator::visit(FunctionParam& node) {
     if (node.pattern_no_top_alt) {
         node.pattern_no_top_alt->accept(this);
     }
+    auto llvm_type = getLLVMType(node.type->type);
+    auto identifier = "%" + std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child)->identifier;
+    auto param_value = new myllvm::LocalVariable(identifier, llvm_type);
+    // std::cerr << node.type->type << ' ' << identifier << std::endl;
+    func_param.push_back(param_value);
 }
 
 void IRGenerator::visit(FunctionReturnType& node) {
@@ -300,7 +330,7 @@ void IRGenerator::visit(LetStatement& node) {
     auto var_node = std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child);
     auto var_name = var_node->identifier;
     uint32_t var_id = var_counter[var_name]++;
-    auto var_real_name = "%" + var_name + "_" + std::to_string(var_id);
+    auto var_real_name = "%" + var_name + "." + std::to_string(var_id);
     auto local_var = new myllvm::LocalVariable(var_real_name, llvm_type);
     local_variables_stack.back()[var_name] = local_var;
     auto alloca = builder->createAlloca(var_real_name, llvm_type);
@@ -385,6 +415,7 @@ void IRGenerator::visit(IntegerLiteral& node) {
         type_string = "i32"; // 默认类型为 i32
     }
     myllvm::Type* llvm_type = getLLVMType(type_string);
+    // std::cerr << llvm_type->toString() << std::endl;
     node.ir_value = new myllvm::Constant(temp_value, llvm_type);
 }
 
@@ -421,18 +452,23 @@ void IRGenerator::visit(BorrowExpression& node) {
 
 void IRGenerator::visit(DereferenceExpression& node) {
     if (node.expression) {
-        node.expression->accept(this);
+        node.expression->is_ptr = true;
+        node.expression->accept(this);    
     }
+    node.ir_value = node.expression->ir_value; // 将被 dereference 的表达式的 IR 值传递给父表达式
 }
 
 void IRGenerator::visit(BinaryExpression& node) {
+    // std::cerr << "Generating IR for binary expression of type " << node.binary_type << std::endl;
     if (node.binary_type != BinaryExpression::AND_AND && node.binary_type != BinaryExpression::OR_OR) {
         if (node.lhs) {
             node.lhs->accept(this);
         }
+        // std::cerr << "LHS done" << std::endl;
         if (node.rhs) {
             node.rhs->accept(this);
         }
+        // std::cerr << "RHS done" << std::endl;
     }
     auto lhs = node.lhs->ir_value, rhs = node.rhs->ir_value;
     std::pair<std::string, std::string> labels;
@@ -440,7 +476,9 @@ void IRGenerator::visit(BinaryExpression& node) {
     std::string previous_basic_block = "";
     switch (node.binary_type) {
         case BinaryExpression::PLUS:
+            // std::cerr << "Generating IR for addition" << std::endl;
             node.ir_value = builder->createBinaryOp("add", lhs, rhs);
+            // std::cerr << "Addition IR generated: " << node.ir_value->toString() << std::endl;
             break;
         case BinaryExpression::MINUS:
             node.ir_value = builder->createBinaryOp("sub", lhs, rhs);
@@ -547,7 +585,7 @@ void IRGenerator::visit(AssignmentExpression& node) {
 
     auto lhs = node.lhs->ir_value;
     auto rhs = node.rhs->ir_value;
-    builder->createStore(lhs->getType(), rhs, lhs);
+    builder->createStore(rhs->getType(), rhs, lhs);
     node.ir_value = new myllvm::Instruction("()", context["void"]);
 }
 
@@ -805,6 +843,7 @@ void IRGenerator::visit(ReturnExpression& node) {
         auto void_val = new myllvm::Constant("", getLLVMType("()"));
         builder->createRet(void_val);
     }
+    current_function_has_return = true;
 }
 
 void IRGenerator::visit(Condition& node) {
@@ -894,7 +933,7 @@ void IRGenerator::visit(PathInExpression& node) {
     // }
     auto str = node.segment1->identifier + (node.segment2 ? (".." + node.segment2->identifier) : "");
     if (node.is_ptr) {
-        std::cerr << "is_ptr is true for PathInExpression with path: " << str << std::endl;
+        // std::cerr << "is_ptr is true for PathInExpression with path: " << str << std::endl;
         auto var_value = getVarValue(str);
         if (var_value != nullptr) {
             node.ir_value = var_value; // 直接使用变量的地址
