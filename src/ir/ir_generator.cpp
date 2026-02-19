@@ -53,6 +53,8 @@ IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder 
     context["bool"] = new myllvm::Int1Type();
     context["()"] = new myllvm::VoidType();
     context["&"] = new myllvm::PointerType();
+    functions["exit"] = new myllvm::Function("exit", context["()"], false);
+    functions["printlnInt"] = new myllvm::Function("printlnInt", context["()"], false);
 }
 
 void IRGenerator::visit(Crate& node) {
@@ -103,13 +105,15 @@ void IRGenerator::visit(Function& node) {
     // 处理函数参数
     // 有点困难
     // 先不管 is large 了，统统暴力处理
-    func_param.clear();
+    func_param.push_back({}); // 为当前函数参数创建一个新的参数列表
     if (node.function_parameters) {
         node.function_parameters->accept(this);
     }
-    for (size_t i = 0; i < func_param.size(); ++i) {
-        os << func_param[i]->getType()->toString() << " " << func_param[i]->toString();
-        if (i != func_param.size() - 1) {
+    auto func_param_list = func_param.back(); // 获取当前函数的参数列表
+    func_param.pop_back(); // 处理完参数后弹出当前函数的参数列表
+    for (size_t i = 0; i < func_param_list.size(); ++i) {
+        os << func_param_list[i]->getType()->toString() << " " << func_param_list[i]->toString();
+        if (i != func_param_list.size() - 1) {
             os << ", ";
         }
     }
@@ -117,18 +121,18 @@ void IRGenerator::visit(Function& node) {
     if (node.block_expression) {
         os << " {" << std::endl;
         os << "entry:" << std::endl;
-        for (size_t i = 0; i < func_param.size(); ++i) {
-            if (func_param[i]->getType()->isPointer()) {
+        for (size_t i = 0; i < func_param_list.size(); ++i) {
+            if (func_param_list[i]->getType()->isPointer()) {
                 // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
-                auto var_name = func_param[i]->toString().substr(1);
-                local_variables_stack.back()[var_name] = func_param[i];
+                auto var_name = func_param_list[i]->toString().substr(1);
+                local_variables_stack.back()[var_name] = func_param_list[i];
                 continue;
             }
-            auto var_name = func_param[i]->toString().substr(1);
+            auto var_name = func_param_list[i]->toString().substr(1);
             auto num = var_counter[var_name]++;
-            auto real_value = new myllvm::LocalVariable("%" + var_name + "." + std::to_string(num), func_param[i]->getType());
+            auto real_value = new myllvm::LocalVariable("%" + var_name + "." + std::to_string(num), func_param_list[i]->getType());
             builder->createAlloca(real_value->toString(), real_value->getType());
-            builder->createStore(func_param[i]->getType(), func_param[i], real_value);
+            builder->createStore(func_param_list[i]->getType(), func_param_list[i], real_value);
             local_variables_stack.back()[var_name] = real_value; // 将参数的 Alloca 存入局部变量表，后续访问该参数时使用这个 Alloca 来加载值
         }
         current_basic_block = "entry";
@@ -267,7 +271,7 @@ void IRGenerator::visit(FunctionParam& node) {
     auto identifier = "%" + std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child)->identifier;
     auto param_value = new myllvm::LocalVariable(identifier, llvm_type);
     // std::cerr << node.type->type << ' ' << identifier << std::endl;
-    func_param.push_back(param_value);
+    func_param.back().push_back(param_value);
 }
 
 void IRGenerator::visit(FunctionReturnType& node) {
@@ -651,9 +655,32 @@ void IRGenerator::visit(CallExpression& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    func_param.push_back({});
     if (node.call_params) {
         node.call_params->accept(this);
     }
+    auto function_name = node.expression->ir_value->toString();
+    std::cerr << "Generating IR for function call: " << function_name << std::endl;
+    if (function_name != "exit") {
+        auto function_val = functions[function_name];
+        if (function_val->getType()->isVoid()) {
+            os << "  call void @" << function_name << "(";
+        } else {
+            auto reg_name = builder->newTempReg();
+            os << "  " << reg_name << " = call " << function_val->getType()->toString() << " @" << function_name << "(";
+            node.ir_value = new myllvm::Instruction(reg_name, function_val->getType());
+        }
+        for (size_t i = 0; i < func_param.back().size(); ++i) {
+            if (func_param.back()[i]) {
+                os << func_param.back()[i]->getType()->toString() << ' ' << func_param.back()[i]->toString();
+                if (i != func_param.back().size() - 1) {
+                    os << ", ";
+                }
+            }
+        }
+        os << ")" << std::endl;
+    }
+    func_param.pop_back();
 }
 
 void IRGenerator::visit(MethodCallExpression& node) {
@@ -879,6 +906,8 @@ void IRGenerator::visit(CallParams& node) {
     for (auto& expr : node.expressions) {
         if (expr) {
             expr->accept(this);
+            auto temp_var_value = new myllvm::LocalVariable(expr->ir_value->toString(), expr->ir_value->getType());
+            func_param.back().push_back(temp_var_value); // 将函数调用参数的 IR 值添加到当前函数参数列表中
         }
     }
 }
@@ -943,6 +972,9 @@ void IRGenerator::visit(PathInExpression& node) {
         if (var_value != nullptr) {
             auto load = builder->createLoad(getLLVMType(node.type), var_value);
             node.ir_value = load; // 加载变量的值
+        } else if (functions.count(str)) {
+            node.ir_value = functions[str]; // 将函数作为值使用
+            // std::cerr << "PathInExpression resolved to function: " << str << std::endl;
         }
     }
 }
@@ -953,6 +985,11 @@ void IRGenerator::visit(PathIdentSegment& node) {
         if (var_value != nullptr) {
             auto load = builder->createLoad(getLLVMType(node.type), getVarValue(node.identifier));
             node.ir_value = load;
+        } else {
+            auto function_val = functions[node.identifier];
+            if (function_val) {
+                node.ir_value = function_val; // 将函数作为值使用
+            }
         }
     }
 }
