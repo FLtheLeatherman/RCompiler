@@ -413,14 +413,18 @@ void IRGenerator::visit(RawCStringLiteral& node) {
 void IRGenerator::visit(IntegerLiteral& node) {
     auto temp_value = node.value;
     std::string type_string = "";
-    while (!isdigit(temp_value.back())) {
-        type_string = temp_value.back() + type_string;
-        temp_value.pop_back();
+    for (size_t i = 0; i < temp_value.size(); ++i) {
+        if (!std::isdigit(temp_value[i])) {
+            type_string = temp_value.substr(i);
+            temp_value = temp_value.substr(0, i);
+            break;
+        }
     }
     if (type_string.empty()) {
         type_string = "i32"; // 默认类型为 i32
     }
     myllvm::Type* llvm_type = getLLVMType(type_string);
+    std::cerr << llvm_type->toString() << ' ' << temp_value << std::endl;
     // std::cerr << llvm_type->toString() << std::endl;
     node.ir_value = new myllvm::Constant(temp_value, llvm_type);
 }
