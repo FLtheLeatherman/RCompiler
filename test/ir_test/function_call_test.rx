@@ -1,0 +1,10 @@
+fn add(x: i32, y: i32) -> i32 {
+    x + y
+}
+fn main() {
+    let a: i32 = 3;
+    let b: i32 = 2;
+    let c: i32 = add(a, b);
+    printlnInt(c);
+    exit(1);
+}

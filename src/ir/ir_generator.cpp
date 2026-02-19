@@ -54,7 +54,9 @@ IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder 
     context["()"] = new myllvm::VoidType();
     context["&"] = new myllvm::PointerType();
     functions["exit"] = new myllvm::Function("exit", context["()"], false);
+    os << "declare void @exit(i32)" << std::endl;
     functions["printlnInt"] = new myllvm::Function("printlnInt", context["()"], false);
+    os << "declare void @printlnInt(i32)" << std::endl;
 }
 
 void IRGenerator::visit(Crate& node) {
@@ -661,7 +663,7 @@ void IRGenerator::visit(CallExpression& node) {
     }
     auto function_name = node.expression->ir_value->toString();
     std::cerr << "Generating IR for function call: " << function_name << std::endl;
-    if (function_name != "exit") {
+    // if (function_name != "exit") {
         auto function_val = functions[function_name];
         if (function_val->getType()->isVoid()) {
             os << "  call void @" << function_name << "(";
@@ -679,7 +681,7 @@ void IRGenerator::visit(CallExpression& node) {
             }
         }
         os << ")" << std::endl;
-    }
+    // }
     func_param.pop_back();
 }
 
