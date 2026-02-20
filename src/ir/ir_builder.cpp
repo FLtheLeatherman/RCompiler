@@ -85,5 +85,16 @@ Instruction* IRBuilder::createPHI(Type* type, std::vector<std::pair<Value*, std:
     os << std::endl;
     return result;
 }
+void IRBuilder::createTypeDef(std::string struct_name, std::vector<Type*> field_types) {
+    os << "%struct." << struct_name << " = type { ";
+    for (size_t i = 0; i < field_types.size(); ++i) {
+        os << field_types[i]->toString();
+        if (i != field_types.size() - 1) {
+            os << ", ";
+        }
+    }
+    os << " }" << std::endl;
+    return; // 类型定义没有返回值
+}
 
 }

@@ -29,6 +29,7 @@ public:
     std::pair<std::string, std::string> createBr(Value* condition, std::string true_label_prefix = "if_true", std::string false_label_prefix = "if_false");
     void createUncondBr(std::string label);
     Instruction* createPHI(Type* type, std::vector<std::pair<Value*, std::string>> incoming);
+    void createTypeDef(std::string struct_name, std::vector<Type*> field_types);
 };
 
 }

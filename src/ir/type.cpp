@@ -53,7 +53,8 @@ std::string Int1Type::toString() const {
     return "i1";
 }
 
-StructType::StructType(std::string name) : name(name) {}
+StructType::StructType(std::string name, const std::vector<Type*>& field_types) 
+    : name(name), field_types(field_types) {}
 std::string StructType::toString() const {
     return name;
 }

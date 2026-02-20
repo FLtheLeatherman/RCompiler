@@ -24,7 +24,7 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
     } else if (type_name[0] == '&') {
         return context["&"];
     } else {
-        auto res = new myllvm::StructType(type_name);
+        auto res = context[type_name];
         return res;
     }
 }
@@ -283,15 +283,19 @@ void IRGenerator::visit(FunctionReturnType& node) {
 }
 
 void IRGenerator::visit(StructStruct& node) {
+    struct_field_types.clear();
     if (node.struct_fields) {
         node.struct_fields->accept(this);
     }
+    builder->createTypeDef(node.identifier, struct_field_types);
+    context[node.identifier] = new myllvm::StructType(node.identifier, struct_field_types); // 将结构体类型添加到上下文中，以便后续使用
 }
 
 void IRGenerator::visit(StructFields& node) {
     for (auto& field : node.struct_fields) {
         if (field) {
             field->accept(this);
+            struct_field_types.push_back(getLLVMType(field->type->type)); // 将字段类型添加到当前结构体的字段类型列表中
         }
     }
 }

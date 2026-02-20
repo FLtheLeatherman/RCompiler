@@ -55,8 +55,9 @@ public:
 class StructType : public Type {
 private:
     std::string name;
+    std::vector<Type*> field_types; // 结构体字段的类型列表
 public:
-    StructType(std::string name);
+    StructType(std::string name, const std::vector<Type*>& field_types);
     std::string toString() const override;
     bool isStruct() const override;
 };
