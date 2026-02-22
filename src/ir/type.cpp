@@ -53,10 +53,21 @@ std::string Int1Type::toString() const {
     return "i1";
 }
 
-StructType::StructType(std::string name, const std::vector<Type*>& field_types) 
-    : name(name), field_types(field_types) {}
+StructType::StructType(std::string name, const std::vector<std::pair<std::string, Type*>>& field) 
+    : name(name), field(field) {}
 std::string StructType::toString() const {
     return name;
+}
+Type* StructType::getFieldType(size_t idx) const {
+    return field[idx].second;
+}
+size_t StructType::getFieldIdx(std::string field_name) const {
+    for (size_t i = 0; i < field.size(); ++i) {
+        if (field[i].first == field_name) {
+            return i;
+        }
+    }
+    return -1; // 如果字段未找到，返回 -1
 }
 bool StructType::isStruct() const {
     return true;

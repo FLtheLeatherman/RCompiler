@@ -24,7 +24,7 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
     } else if (type_name[0] == '&') {
         return context["&"];
     } else {
-        auto res = context[type_name];
+        auto res = context["struct." + type_name];
         return res;
     }
 }
@@ -283,19 +283,19 @@ void IRGenerator::visit(FunctionReturnType& node) {
 }
 
 void IRGenerator::visit(StructStruct& node) {
-    struct_field_types.clear();
+    struct_fields.clear();
     if (node.struct_fields) {
         node.struct_fields->accept(this);
     }
-    builder->createTypeDef(node.identifier, struct_field_types);
-    context[node.identifier] = new myllvm::StructType(node.identifier, struct_field_types); // 将结构体类型添加到上下文中，以便后续使用
+    builder->createTypeDef(node.identifier, struct_fields);
+    context["struct." + node.identifier] = new myllvm::StructType("%struct." + node.identifier, struct_fields); // 将结构体类型添加到上下文中，以便后续使用
 }
 
 void IRGenerator::visit(StructFields& node) {
     for (auto& field : node.struct_fields) {
         if (field) {
             field->accept(this);
-            struct_field_types.push_back(getLLVMType(field->type->type)); // 将字段类型添加到当前结构体的字段类型列表中
+            struct_fields.push_back(std::make_pair(field->identifier, getLLVMType(field->type->type))); // 将字段类型添加到当前结构体的字段类型列表中
         }
     }
 }
@@ -369,6 +369,7 @@ void IRGenerator::visit(Statements& node) {
 
 void IRGenerator::visit(Expression& node) {
     if (node.child) {
+        node.child->is_ptr = node.is_ptr; // 将父表达式的 is_ptr 属性传递给子表达式
         node.child->accept(this);
     }
     node.ir_value = node.child->ir_value; // 将子表达式的 IR 值传递给父表达式
@@ -376,6 +377,7 @@ void IRGenerator::visit(Expression& node) {
 
 void IRGenerator::visit(ExpressionWithoutBlock& node) {
     if (node.child) {
+        node.child->is_ptr = node.is_ptr; // 将父表达式的 is_ptr 属性传递给子表达式
         node.child->accept(this);
     }
     node.ir_value = node.child->ir_value; // 将子表达式的 IR 值传递给父表达式
@@ -448,7 +450,18 @@ void IRGenerator::visit(PathExpression& node) {
 
 void IRGenerator::visit(FieldExpression& node) {
     if (node.expression) {
+        node.expression->is_ptr = true;
         node.expression->accept(this);
+    }
+    auto base_value = node.expression->ir_value;
+    auto field_name = node.identifier;
+    auto struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
+    auto idx = struct_type->getFieldIdx(field_name);
+    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx);
+    if (node.is_ptr) {
+        node.ir_value = ptr; // 如果父表达式需要指针，直接返回 GEP 结果
+    } else {
+        node.ir_value = builder->createLoad(struct_type->getFieldType(idx), ptr); // 否则需要加载字段值
     }
 }
 
@@ -712,12 +725,29 @@ void IRGenerator::visit(IndexExpression& node) {
 }
 
 void IRGenerator::visit(StructExpression& node) {
-    if (node.path_in_expression) {
-        node.path_in_expression->accept(this);
+    // if (node.path_in_expression) {
+    //     node.path_in_expression->accept(this);
+    // }
+    // if (node.struct_expr_fields) {
+    //     node.struct_expr_fields->accept(this);
+    // }
+    auto type_name = "struct." + node.path_in_expression->segment1->identifier;
+    auto type = dynamic_cast<myllvm::StructType*>(context[type_name]);
+    auto var_name = "%" + type_name + ".expr." + std::to_string(var_counter[type_name + ".expr"]++);
+    auto ptr = builder->createAlloca(var_name, type);
+    auto expr_fields = node.struct_expr_fields->struct_expr_fields;
+    for (size_t idx = 0; idx < expr_fields.size(); ++idx) {
+        auto field = expr_fields[idx];
+        field->accept(this);
+        auto field_name = field->identifier;
+        auto field_type = type->getFieldType(idx);
+        auto field_value = field->ir_value;
+        // std::cerr << field_type->toString() << std::endl;
+        // std::cerr << field_value->toString() << std::endl;
+        auto field_ptr = builder->createGetElementPtr(type, ptr, idx);
+        builder->createStore(field_type, field_value, field_ptr);
     }
-    if (node.struct_expr_fields) {
-        node.struct_expr_fields->accept(this);
-    }
+    node.ir_value = builder->createLoad(type, ptr);
 }
 
 void IRGenerator::visit(ArrayExpression& node) {
@@ -910,6 +940,7 @@ void IRGenerator::visit(StructExprField& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    node.ir_value = node.expression->ir_value;
 }
 
 void IRGenerator::visit(CallParams& node) {

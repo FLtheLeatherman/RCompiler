@@ -85,16 +85,21 @@ Instruction* IRBuilder::createPHI(Type* type, std::vector<std::pair<Value*, std:
     os << std::endl;
     return result;
 }
-void IRBuilder::createTypeDef(std::string struct_name, std::vector<Type*> field_types) {
+void IRBuilder::createTypeDef(std::string struct_name, std::vector<std::pair<std::string, Type*>> field_types) {
     os << "%struct." << struct_name << " = type { ";
     for (size_t i = 0; i < field_types.size(); ++i) {
-        os << field_types[i]->toString();
+        os << field_types[i].second->toString();
         if (i != field_types.size() - 1) {
             os << ", ";
         }
     }
     os << " }" << std::endl;
     return; // 类型定义没有返回值
+}
+Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, size_t idx) {
+    Instruction* result = new Instruction(newTempReg(), new PointerType()); // GEP的结果类型是指向元素类型的指针
+    os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx << std::endl;
+    return result;
 }
 
 }
