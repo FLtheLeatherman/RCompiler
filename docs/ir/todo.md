@@ -14,9 +14,9 @@
 
 5. function parameters 和 return 的处理，call expression（done）
 
-6. impl 相关
+6. impl 相关（done）
 
-7. array 相关
+7. array 相关（done）
 
 8. 内建函数（初步 done）
 

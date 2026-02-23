@@ -34,6 +34,7 @@ private:
     std::unordered_map<std::string, bool> label_has_br_or_ret; // 记录每个标签是否已经有分支或返回指令
     std::vector<std::vector<myllvm::LocalVariable*>> func_param;
     std::vector<std::pair<std::string, myllvm::Type*>> struct_fields; // 用于处理结构体定义时的字段类型
+    std::string current_impl;
 
     myllvm::Type* getLLVMType(std::string);
     myllvm::Value* getVarValue(std::string);

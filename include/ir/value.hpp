@@ -20,10 +20,15 @@ public:
 class Function : public Value {
 private:
     std::string function_name;
-    bool is_large; // 是否为返回结构体或数组的函数
+    bool has_self;
+    bool self_ref;
+    std::vector<bool> param_is_ref;
 public:
-    Function(const std::string& name, Type* type, bool is_large);
-    bool isLarge() const;
+    Function(const std::string& name, Type* type, bool has_self, bool self_ref);
+    bool hasSelf() const;
+    bool isSelfRef() const;
+    bool isParamRef(size_t index) const;
+    void newParamIsRef(bool is_ref);
     std::string toString() const override;
 };
 

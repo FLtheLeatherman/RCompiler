@@ -13,11 +13,25 @@ std::string Value::toString() const {
     return "";
 }
 
-Function::Function(const std::string& name, Type* type, bool is_large) 
-    : Value(type), function_name(name), is_large(is_large) {}
+Function::Function(const std::string& name, Type* type, bool has_self, bool self_ref) 
+    : Value(type), function_name(name), has_self(has_self), self_ref(self_ref) {
+    param_is_ref.clear();
+}
 
-bool Function::isLarge() const {
-    return is_large;
+bool Function::hasSelf() const {
+    return has_self;
+}
+bool Function::isSelfRef() const {
+    return self_ref;
+}
+bool Function::isParamRef(size_t index) const {
+    if (index >= param_is_ref.size()) {
+        throw std::out_of_range("Parameter index out of range");
+    }
+    return param_is_ref[index];
+}
+void Function::newParamIsRef(bool is_ref) {
+    param_is_ref.push_back(is_ref);
 }
 std::string Function::toString() const {
     return function_name;

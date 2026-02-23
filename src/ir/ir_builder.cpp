@@ -96,14 +96,22 @@ void IRBuilder::createTypeDef(std::string struct_name, std::vector<std::pair<std
     os << " }" << std::endl;
     return; // 类型定义没有返回值
 }
-Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, size_t idx) {
+Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, size_t idx, bool need_0) {
     Instruction* result = new Instruction(newTempReg(), new PointerType()); // GEP的结果类型是指向元素类型的指针
-    os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx << std::endl;
+    if (need_0) {
+        os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 0, i32 " << idx << std::endl;
+    } else {
+        os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx << std::endl;
+    }
     return result;
 }
-Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, Value* idx) {
+Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, Value* idx, bool need_0) {
     Instruction* result = new Instruction(newTempReg(), new PointerType()); // GEP的结果类型是指向元素类型的指针
-    os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx->toString() << std::endl;
+    if (need_0) {
+        os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 0, i32 " << idx->toString() << std::endl;
+    } else {
+        os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx->toString() << std::endl;
+    }
     return result;
 }
 

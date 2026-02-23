@@ -1,7 +1,15 @@
 #include "ir/ir_generator.hpp"
 
 myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
-    if (type_name[0] == '[') {
+    if (type_name == "Self") {
+        if (current_impl != "") {
+            auto res = context["struct." + current_impl];
+            return res;
+        } else {
+            std::cerr << "Error: 'Self' type used outside of an impl block" << std::endl;
+            exit(1);
+        }
+    } else if (type_name[0] == '[') {
         std::string num;
         size_t pos = type_name.find_first_of(']') + 1;
         while (pos < type_name.size() && std::isdigit(type_name[pos])) {
@@ -53,9 +61,15 @@ IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder 
     context["bool"] = new myllvm::Int1Type();
     context["()"] = new myllvm::VoidType();
     context["&"] = new myllvm::PointerType();
-    functions["exit"] = new myllvm::Function("exit", context["()"], false);
+
+    auto exit_val = new myllvm::Function("exit", context["()"], false, false);
+    exit_val->newParamIsRef(false); // exit 的参数不是引用类型
+    functions["exit"] = exit_val;
     os << "declare void @exit(i32)" << std::endl;
-    functions["printlnInt"] = new myllvm::Function("printlnInt", context["()"], false);
+
+    auto printlnInt_val = new myllvm::Function("printlnInt", context["()"], false, false);
+    printlnInt_val->newParamIsRef(false); // printlnInt 的参数不是引用类型
+    functions["printlnInt"] = printlnInt_val;
     os << "declare void @printlnInt(i32)" << std::endl;
 }
 
@@ -96,17 +110,23 @@ void IRGenerator::visit(Function& node) {
     myllvm::Type* return_type = getLLVMType(type_str);
     // std::cerr << "LLVM return type: " << return_type->toString() << std::endl;
     // std::cerr << "Is return type void? " << (return_type->isVoid() ? "Yes" : "No") << std::endl;
-    bool is_large = return_type->isStruct() || return_type->isArray();
-    auto function_val = new myllvm::Function(node.identifier, return_type, is_large);
-    functions[node.identifier] = function_val;
-    if (node.block_expression) {
-        os << "define " << return_type->toString() << " @" << node.identifier << "(";
-    } else {
-        os << "declare " << return_type->toString() << " @" << node.identifier << "(";
+    auto function_name = node.identifier;
+    if (current_impl != "") {
+        function_name = current_impl + ".." + node.identifier;
     }
-    // 处理函数参数
-    // 有点困难
-    // 先不管 is large 了，统统暴力处理
+    bool has_self = node.function_parameters && node.function_parameters->self_param;
+    bool self_ref = false;
+    if (has_self) {
+        auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(node.function_parameters->self_param->child);
+        self_ref = shorthand_self->is_reference;
+    }
+    auto function_val = new myllvm::Function(function_name, return_type, has_self, self_ref);
+    if (node.block_expression) {
+        os << "define " << return_type->toString() << " @" << function_name << "(";
+    } else {
+        os << "declare " << return_type->toString() << " @" << function_name << "(";
+    }
+
     func_param.push_back({}); // 为当前函数参数创建一个新的参数列表
     if (node.function_parameters) {
         node.function_parameters->accept(this);
@@ -118,8 +138,14 @@ void IRGenerator::visit(Function& node) {
         if (i != func_param_list.size() - 1) {
             os << ", ";
         }
+        if (func_param_list[i]->getType()->isPointer()) {
+            function_val->newParamIsRef(true);
+        } else {
+            function_val->newParamIsRef(false);
+        }
     }
     os << ")";
+    functions[function_name] = function_val;
     if (node.block_expression) {
         os << " {" << std::endl;
         os << "entry:" << std::endl;
@@ -201,6 +227,8 @@ void IRGenerator::visit(InherentImpl& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
+
+    current_impl = current_scope->getImplSelfType();
     
     // 处理关联项
     for (auto& item : node.associated_item) {
@@ -208,6 +236,8 @@ void IRGenerator::visit(InherentImpl& node) {
             item->accept(this);
         }
     }
+
+    current_impl = "";
     
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -217,6 +247,8 @@ void IRGenerator::visit(TraitImpl& node) {
     auto prev_scope = current_scope;
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
+
+    current_impl = current_scope->getImplSelfType();
     
     // 处理关联项
     for (auto& item : node.associated_item) {
@@ -225,6 +257,8 @@ void IRGenerator::visit(TraitImpl& node) {
         }
     }
     
+    current_impl = "";
+
     current_scope = prev_scope;
     current_scope->nextChild();
 }
@@ -238,6 +272,13 @@ void IRGenerator::visit(AssociatedItem& node) {
 void IRGenerator::visit(FunctionParameters& node) {
     if (node.self_param) {
         node.self_param->accept(this);
+        auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(node.self_param->child);
+        if (shorthand_self->is_reference) {
+            auto self_type = new myllvm::PointerType();
+            func_param.back().push_back(new myllvm::LocalVariable("%self", self_type));
+        } else {
+            func_param.back().push_back(new myllvm::LocalVariable("%self", getLLVMType("Self")));
+        }
     }
     for (auto& param : node.function_param) {
         if (param) {
@@ -461,7 +502,7 @@ void IRGenerator::visit(FieldExpression& node) {
     auto field_name = node.identifier;
     auto struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
     auto idx = struct_type->getFieldIdx(field_name);
-    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx);
+    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx, true);
     if (node.is_ptr) {
         node.ir_value = ptr; // 如果父表达式需要指针，直接返回 GEP 结果
     } else {
@@ -683,40 +724,90 @@ void IRGenerator::visit(CallExpression& node) {
         node.expression->accept(this);
     }
     func_param.push_back({});
-    if (node.call_params) {
-        node.call_params->accept(this);
-    }
     auto function_name = node.expression->ir_value->toString();
     std::cerr << "Generating IR for function call: " << function_name << std::endl;
-    // if (function_name != "exit") {
-        auto function_val = functions[function_name];
-        if (function_val->getType()->isVoid()) {
-            os << "  call void @" << function_name << "(";
-        } else {
-            auto reg_name = builder->newTempReg();
-            os << "  " << reg_name << " = call " << function_val->getType()->toString() << " @" << function_name << "(";
-            node.ir_value = new myllvm::Instruction(reg_name, function_val->getType());
-        }
-        for (size_t i = 0; i < func_param.back().size(); ++i) {
-            if (func_param.back()[i]) {
-                os << func_param.back()[i]->getType()->toString() << ' ' << func_param.back()[i]->toString();
-                if (i != func_param.back().size() - 1) {
-                    os << ", ";
-                }
+    auto function_val = functions[function_name];
+    if (node.call_params) {
+        auto call_params = node.call_params;
+        for (size_t i = 0; i < call_params->expressions.size(); ++i) {
+            auto expr = call_params->expressions[i];
+            if (expr) {
+                if (function_val->isParamRef(i)) expr->is_ptr = true;
+                expr->accept(this);
+                auto temp_var_value = new myllvm::LocalVariable(expr->ir_value->toString(), expr->ir_value->getType());
+                func_param.back().push_back(temp_var_value); // 将函数调用参数的 IR 值添加到当前函数参数列表中
             }
         }
-        os << ")" << std::endl;
-    // }
+    }
+    if (function_val->getType()->isVoid()) {
+        os << "  call void @" << function_name << "(";
+    } else {
+        auto reg_name = builder->newTempReg();
+        os << "  " << reg_name << " = call " << function_val->getType()->toString() << " @" << function_name << "(";
+        node.ir_value = new myllvm::Instruction(reg_name, function_val->getType());
+    }
+    for (size_t i = 0; i < func_param.back().size(); ++i) {
+        if (func_param.back()[i]) {
+            if (!function_val->isParamRef(i)) os << func_param.back()[i]->getType()->toString() << ' ' << func_param.back()[i]->toString();
+            else os << "ptr " << func_param.back()[i]->toString();
+            if (i != func_param.back().size() - 1) {
+                os << ", ";
+            }
+        }
+    }
+    os << ")" << std::endl;
     func_param.pop_back();
 }
 
 void IRGenerator::visit(MethodCallExpression& node) {
     if (node.expression) {
+        node.expression->is_ptr = true;
         node.expression->accept(this);
     }
-    if (node.call_params) {
-        node.call_params->accept(this);
+    func_param.push_back({});
+    auto function_name = node.expression->ir_value->getType()->toString() + ".." + node.path_ident_segment->identifier;
+    std::cerr << "Generating IR for function call: " << function_name << std::endl;
+    auto function_val = functions[function_name];
+    if (function_val->hasSelf()) {
+        if (function_val->isSelfRef()) {
+            auto self_param = new myllvm::LocalVariable(node.expression->ir_value->toString(), context["&"]);
+            func_param.back().push_back(self_param);
+        } else {
+            auto self_param = builder->createLoad(node.expression->ir_value->getType(), node.expression->ir_value);
+            auto self_param_var = new myllvm::LocalVariable(self_param->toString(), node.expression->ir_value->getType());
+            func_param.back().push_back(self_param_var);
+        }
     }
+    if (node.call_params) {
+        auto call_params = node.call_params;
+        for (size_t i = 0; i < call_params->expressions.size(); ++i) {
+            auto expr = call_params->expressions[i];
+            if (expr) {
+                if (function_val->isParamRef(i)) expr->is_ptr = true;
+                expr->accept(this);
+                auto temp_var_value = new myllvm::LocalVariable(expr->ir_value->toString(), expr->ir_value->getType());
+                func_param.back().push_back(temp_var_value); // 将函数调用参数的 IR 值添加到当前函数参数列表中
+            }
+        }
+    }
+    if (function_val->getType()->isVoid()) {
+        os << "  call void @" << function_name << "(";
+    } else {
+        auto reg_name = builder->newTempReg();
+        os << "  " << reg_name << " = call " << function_val->getType()->toString() << " @" << function_name << "(";
+        node.ir_value = new myllvm::Instruction(reg_name, function_val->getType());
+    }
+    for (size_t i = 0; i < func_param.back().size(); ++i) {
+        if (func_param.back()[i]) {
+            if (!function_val->isParamRef(i)) os << func_param.back()[i]->getType()->toString() << ' ' << func_param.back()[i]->toString();
+            else os << "ptr " << func_param.back()[i]->toString();
+            if (i != func_param.back().size() - 1) {
+                os << ", ";
+            }
+        }
+    }
+    os << ")" << std::endl;
+    func_param.pop_back();
 }
 
 void IRGenerator::visit(IndexExpression& node) {
@@ -770,7 +861,7 @@ void IRGenerator::visit(StructExpression& node) {
         auto field_value = field->ir_value;
         // std::cerr << field_type->toString() << std::endl;
         // std::cerr << field_value->toString() << std::endl;
-        auto field_ptr = builder->createGetElementPtr(type, ptr, idx);
+        auto field_ptr = builder->createGetElementPtr(type, ptr, idx, true);
         builder->createStore(field_type, field_value, field_ptr);
     }
     node.ir_value = builder->createLoad(type, ptr);
@@ -1000,13 +1091,7 @@ void IRGenerator::visit(StructExprField& node) {
 }
 
 void IRGenerator::visit(CallParams& node) {
-    for (auto& expr : node.expressions) {
-        if (expr) {
-            expr->accept(this);
-            auto temp_var_value = new myllvm::LocalVariable(expr->ir_value->toString(), expr->ir_value->getType());
-            func_param.back().push_back(temp_var_value); // 将函数调用参数的 IR 值添加到当前函数参数列表中
-        }
-    }
+    
 }
 
 void IRGenerator::visit(PatternNoTopAlt& node) {
@@ -1057,7 +1142,14 @@ void IRGenerator::visit(PathInExpression& node) {
     // if (node.segment2) {
     //     node.segment2->accept(this);
     // }
-    auto str = node.segment1->identifier + (node.segment2 ? (".." + node.segment2->identifier) : "");
+    std::string str;
+    if (node.segment1->path_type == 0) {
+        str = node.segment1->identifier + (node.segment2 ? (".." + node.segment2->identifier) : "");
+    } else if (node.segment1->path_type == 1) {
+        str = "self";
+    } else {
+        str = current_impl + (node.segment2 ? (".." + node.segment2->identifier) : "");
+    }
     if (node.is_ptr) {
         // std::cerr << "is_ptr is true for PathInExpression with path: " << str << std::endl;
         auto var_value = getVarValue(str);
