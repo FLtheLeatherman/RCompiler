@@ -1,0 +1,12 @@
+struct A {
+    a: i32,
+    b: bool,
+}
+
+fn main() {
+    let mut a: A = A { a: 1, b: true };
+    printlnInt(a.a);
+    a.a = 2;
+    printlnInt(a.a);
+    exit(0);
+}

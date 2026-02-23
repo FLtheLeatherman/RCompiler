@@ -101,5 +101,10 @@ Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, size_t idx) 
     os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx << std::endl;
     return result;
 }
+Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, Value* idx) {
+    Instruction* result = new Instruction(newTempReg(), new PointerType()); // GEP的结果类型是指向元素类型的指针
+    os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 " << idx->toString() << std::endl;
+    return result;
+}
 
 }

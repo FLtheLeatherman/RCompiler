@@ -31,6 +31,7 @@ public:
     Instruction* createPHI(Type* type, std::vector<std::pair<Value*, std::string>> incoming);
     void createTypeDef(std::string struct_name, std::vector<std::pair<std::string, Type*>> field_types);
     Instruction* createGetElementPtr(Type* type, Value* ptr, size_t idx);
+    Instruction* createGetElementPtr(Type* type, Value* ptr, Value* idx);
 };
 
 }

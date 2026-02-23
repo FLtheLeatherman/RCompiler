@@ -10,12 +10,16 @@
 
 3. loop expression（done）
 
-4. struct 相关
+4. struct 相关（done）
 
-5. function parameters 和 return 的处理，call expression
+5. function parameters 和 return 的处理，call expression（done）
 
-6. array 相关
+6. impl 相关
 
-7. impl 相关
+7. array 相关
 
-8. 内建函数
+8. 内建函数（初步 done）
+
+9. 全局变量
+
+10. 指针相关（&, *）

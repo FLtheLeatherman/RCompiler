@@ -326,6 +326,7 @@ void IRGenerator::visit(Statement& node) {
 }
 
 void IRGenerator::visit(LetStatement& node) {
+    std::cerr << "Generating IR for let statement" << std::endl;
     if (node.type) {
         node.type->accept(this);
     }
@@ -335,8 +336,11 @@ void IRGenerator::visit(LetStatement& node) {
     if (node.pattern_no_top_alt) {
         node.pattern_no_top_alt->accept(this);
     }
+    // std::cerr << "good" << std::endl;
     auto type_name = node.type->type;
+    // std::cerr << type_name << std::endl;
     myllvm::Type* llvm_type = getLLVMType(type_name);
+    // std::cerr << llvm_type->toString() << ' ' << type_name << std::endl;
     auto var_node = std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child);
     auto var_name = var_node->identifier;
     uint32_t var_id = var_counter[var_name]++;
@@ -717,10 +721,32 @@ void IRGenerator::visit(MethodCallExpression& node) {
 
 void IRGenerator::visit(IndexExpression& node) {
     if (node.base_expression) {
+        node.base_expression->is_ptr = true;
         node.base_expression->accept(this);
     }
     if (node.index_expression) {
         node.index_expression->accept(this);
+    }
+    auto base_value = node.base_expression->ir_value;
+    auto index_value = node.index_expression->ir_value;
+    auto array_type = node.base_expression->type;
+    std::cerr << "Generating IR for index expression with array type: " << array_type << std::endl;
+    std::string array_element_type;
+    size_t array_len;
+    for (size_t pos = array_type.size() - 1; pos >= 0; --pos) {
+        if (array_type[pos] == ']') {
+            array_len = std::stoi(array_type.substr(pos + 1));
+            array_element_type = array_type.substr(1, pos - 1);
+            break;
+        }
+    }
+    auto llvm_array_type = getLLVMType(array_type);
+    auto llvm_array_element_type = getLLVMType(array_element_type);
+    auto ptr = builder->createGetElementPtr(llvm_array_type, base_value, index_value);
+    if (node.is_ptr) {
+        node.ir_value = ptr;
+    } else {
+        node.ir_value = builder->createLoad(llvm_array_element_type, ptr);
     }
 }
 
@@ -754,6 +780,36 @@ void IRGenerator::visit(ArrayExpression& node) {
     if (node.array_elements) {
         node.array_elements->accept(this);
     }
+    auto array_type = node.type;
+    // std::cerr << array_type << std::endl;
+    std::string array_element_type;
+    size_t array_len;
+    for (size_t pos = array_type.size() - 1; pos >= 0; --pos) {
+        if (array_type[pos] == ']') {
+            // std::cerr << pos << std::endl;
+            array_len = std::stoi(array_type.substr(pos + 1));
+            array_element_type = array_type.substr(1, pos - 1);
+            break;
+        }
+    }
+    auto llvm_array_type = getLLVMType(array_type);
+    auto llvm_array_element_type = getLLVMType(array_element_type);
+    std::string var_name = "array.expr";
+    auto ptr = builder->createAlloca("%" + var_name + "." + std::to_string(var_counter[var_name]++), llvm_array_type);
+    if (node.array_elements->is_semicolon_separated) {
+        auto value = node.array_elements->expressions[0]->ir_value;
+        for (size_t pos = 0; pos < array_len; ++pos) {
+            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, ptr, pos);
+            builder->createStore(llvm_array_element_type, value, ele_ptr);
+        }
+    } else {
+        for (size_t pos = 0; pos < array_len; ++pos) {
+            auto value = node.array_elements->expressions[pos]->ir_value;
+            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, ptr, pos);
+            builder->createStore(llvm_array_element_type, value, ele_ptr);
+        }
+    }
+    node.ir_value = builder->createLoad(llvm_array_type, ptr);
 }
 
 void IRGenerator::visit(GroupedExpression& node) {

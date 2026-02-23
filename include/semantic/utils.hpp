@@ -218,7 +218,7 @@ inline std::string handleArraySymbol(std::shared_ptr<Scope> current_scope, std::
         return type_path->identifier;
     } else if (auto array_type = std::dynamic_pointer_cast<ArrayType>(node->child)) {
         auto expression = array_type->expression;
-        std::cout << array_type->expression->type << std::endl;
+        // std::cout << array_type->expression->type << std::endl;
         auto length = createConstValueFromExpression(current_scope, expression);
         if (!length->isInt()) {
             throw std::runtime_error("Const Evaluation Error: Array length not integer");
