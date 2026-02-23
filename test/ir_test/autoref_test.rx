@@ -1,0 +1,20 @@
+struct Square {
+    len: i32,
+}
+trait Math {
+    fn size(&self) -> i32;
+}
+impl Math for Square {
+    fn size(&self) -> i32 {
+        self.len * self.len
+    }
+}
+fn main() {
+    let a: Square = Square { len : 114 };
+    printlnInt(a.size());
+    let b: &Square = &a;
+    printlnInt(b.size());
+    let c: &[i32; 5] = &[0, 1, 2, 3, 4];
+    printlnInt(c[4]);
+    exit(0);
+}

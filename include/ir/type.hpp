@@ -75,9 +75,12 @@ public:
 };
 
 class PointerType : public Type {
+private:
+    Type* pointee_type;
 public:
-    PointerType();
+    PointerType(Type* pointee_type);
     std::string toString() const override;
+    Type* getPointeeType() const;
     bool isPointer() const override;
 };
 

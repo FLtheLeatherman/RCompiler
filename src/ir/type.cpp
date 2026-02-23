@@ -81,9 +81,13 @@ bool ArrayType::isArray() const {
     return true;
 }
 
-PointerType::PointerType() {}
+PointerType::PointerType(Type* pointee_type)
+    : pointee_type(pointee_type) {}
 std::string PointerType::toString() const {
     return "ptr";
+}
+Type* PointerType::getPointeeType() const {
+    return pointee_type;
 }
 bool PointerType::isPointer() const {
     return true;

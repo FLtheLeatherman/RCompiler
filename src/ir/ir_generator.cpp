@@ -30,7 +30,9 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
     } else if (type_name == "()") {
         return context[type_name];
     } else if (type_name[0] == '&') {
-        return context["&"];
+        auto pointee_type = getLLVMType(type_name.substr(1));
+        auto res = new myllvm::PointerType(pointee_type);
+        return res;
     } else {
         auto res = context["struct." + type_name];
         return res;
@@ -60,7 +62,7 @@ IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder 
     context["char"] = new myllvm::Int8Type();
     context["bool"] = new myllvm::Int1Type();
     context["()"] = new myllvm::VoidType();
-    context["&"] = new myllvm::PointerType();
+    context["&"] = new myllvm::PointerType(nullptr);
 
     auto exit_val = new myllvm::Function("exit", context["()"], false, false);
     exit_val->newParamIsRef(false); // exit 的参数不是引用类型
@@ -120,6 +122,7 @@ void IRGenerator::visit(Function& node) {
         auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(node.function_parameters->self_param->child);
         self_ref = shorthand_self->is_reference;
     }
+    std::cerr << "Function name: " << function_name << ", has self: " << (has_self ? "Yes" : "No") << ", self is reference: " << (self_ref ? "Yes" : "No") << std::endl;
     auto function_val = new myllvm::Function(function_name, return_type, has_self, self_ref);
     if (node.block_expression) {
         os << "define " << return_type->toString() << " @" << function_name << "(";
@@ -132,6 +135,7 @@ void IRGenerator::visit(Function& node) {
         node.function_parameters->accept(this);
     }
     auto func_param_list = func_param.back(); // 获取当前函数的参数列表
+    std::cerr << func_param_list.size() << std::endl;
     func_param.pop_back(); // 处理完参数后弹出当前函数的参数列表
     for (size_t i = 0; i < func_param_list.size(); ++i) {
         os << func_param_list[i]->getType()->toString() << " " << func_param_list[i]->toString();
@@ -150,12 +154,12 @@ void IRGenerator::visit(Function& node) {
         os << " {" << std::endl;
         os << "entry:" << std::endl;
         for (size_t i = 0; i < func_param_list.size(); ++i) {
-            if (func_param_list[i]->getType()->isPointer()) {
-                // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
-                auto var_name = func_param_list[i]->toString().substr(1);
-                local_variables_stack.back()[var_name] = func_param_list[i];
-                continue;
-            }
+            // if (func_param_list[i]->getType()->isPointer()) {
+            //     // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
+            //     auto var_name = func_param_list[i]->toString().substr(1);
+            //     local_variables_stack.back()[var_name] = func_param_list[i];
+            //     continue;
+            // }
             auto var_name = func_param_list[i]->toString().substr(1);
             auto num = var_counter[var_name]++;
             auto real_value = new myllvm::LocalVariable("%" + var_name + "." + std::to_string(num), func_param_list[i]->getType());
@@ -207,11 +211,11 @@ void IRGenerator::visit(Trait& node) {
     current_scope = (current_scope->getChild()).get();
     local_variables_stack.push_back({}); // 进入新作用域，创建新的局部变量表
     
-    for (auto& item : node.associated_item) {
-        if (item) {
-            item->accept(this);
-        }
-    }
+    // for (auto& item : node.associated_item) {
+    //     if (item) {
+    //         item->accept(this);
+    //     }
+    // }
 
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -274,7 +278,7 @@ void IRGenerator::visit(FunctionParameters& node) {
         node.self_param->accept(this);
         auto shorthand_self = std::dynamic_pointer_cast<ShorthandSelf>(node.self_param->child);
         if (shorthand_self->is_reference) {
-            auto self_type = new myllvm::PointerType();
+            auto self_type = new myllvm::PointerType(getLLVMType("Self"));
             func_param.back().push_back(new myllvm::LocalVariable("%self", self_type));
         } else {
             func_param.back().push_back(new myllvm::LocalVariable("%self", getLLVMType("Self")));
@@ -500,9 +504,17 @@ void IRGenerator::visit(FieldExpression& node) {
     }
     auto base_value = node.expression->ir_value;
     auto field_name = node.identifier;
-    auto struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
+    std::cerr << "Generating IR for field access: " << field_name << std::endl;
+    myllvm::StructType* struct_type;
+    if (base_value->getType()->isPointer()) {
+        auto pointer_type = dynamic_cast<myllvm::PointerType*>(base_value->getType());
+        struct_type = dynamic_cast<myllvm::StructType*>(pointer_type->getPointeeType());
+        base_value = builder->createLoad(context["&"], base_value); // 如果父表达式是指针，先加载出结构体值
+    } else {
+        struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
+    }
     auto idx = struct_type->getFieldIdx(field_name);
-    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx, true);
+    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx);
     if (node.is_ptr) {
         node.ir_value = ptr; // 如果父表达式需要指针，直接返回 GEP 结果
     } else {
@@ -514,12 +526,24 @@ void IRGenerator::visit(UnaryExpression& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    switch (node.type) {
+    case UnaryExpression::MINUS:
+        node.ir_value = builder->createBinaryOp("sub", new myllvm::Constant("0", context["i32"]), node.expression->ir_value);
+        break;
+    case UnaryExpression::NOT:
+        node.ir_value = builder->createBinaryOp("xor", node.expression->ir_value, new myllvm::Constant("1", context["bool"]));
+        break;
+    default:
+        break;
+    }
 }
 
 void IRGenerator::visit(BorrowExpression& node) {
     if (node.expression) {
+        node.expression->is_ptr = true;
         node.expression->accept(this);
     }
+    node.ir_value = node.expression->ir_value;
 }
 
 void IRGenerator::visit(DereferenceExpression& node) {
@@ -527,7 +551,9 @@ void IRGenerator::visit(DereferenceExpression& node) {
         node.expression->is_ptr = true;
         node.expression->accept(this);    
     }
-    node.ir_value = node.expression->ir_value; // 将被 dereference 的表达式的 IR 值传递给父表达式
+    auto pointer_type = dynamic_cast<myllvm::PointerType*>(node.expression->ir_value->getType());
+    auto pointee_type = pointer_type->getPointeeType();
+    node.ir_value = builder->createLoad(pointee_type, node.expression->ir_value);
 }
 
 void IRGenerator::visit(BinaryExpression& node) {
@@ -765,19 +791,32 @@ void IRGenerator::visit(MethodCallExpression& node) {
         node.expression->accept(this);
     }
     func_param.push_back({});
-    auto function_name = node.expression->ir_value->getType()->toString() + ".." + node.path_ident_segment->identifier;
+    std::string function_name;
+    if (node.expression->ir_value->getType()->isPointer()) {
+        auto pointer_type = dynamic_cast<myllvm::PointerType*>(node.expression->ir_value->getType());
+        function_name = (pointer_type->getPointeeType()->toString().substr(8)) + ".." + node.path_ident_segment->identifier;
+    } else {
+        function_name = (node.expression->ir_value->getType()->toString().substr(8)) + ".." + node.path_ident_segment->identifier;
+    }
     std::cerr << "Generating IR for function call: " << function_name << std::endl;
     auto function_val = functions[function_name];
     if (function_val->hasSelf()) {
+        // std::cerr << "Function has self parameter" << std::endl;
+        auto self_value = node.expression->ir_value;
+        if (self_value->getType()->isPointer()) {
+            auto pointer_type = dynamic_cast<myllvm::PointerType*>(self_value->getType());
+            self_value = builder->createLoad(context["&"], self_value);
+        }
         if (function_val->isSelfRef()) {
-            auto self_param = new myllvm::LocalVariable(node.expression->ir_value->toString(), context["&"]);
+            auto self_param = new myllvm::LocalVariable(self_value->toString(), context["&"]);
             func_param.back().push_back(self_param);
         } else {
-            auto self_param = builder->createLoad(node.expression->ir_value->getType(), node.expression->ir_value);
-            auto self_param_var = new myllvm::LocalVariable(self_param->toString(), node.expression->ir_value->getType());
+            auto self_param = builder->createLoad(self_value->getType(), self_value);
+            auto self_param_var = new myllvm::LocalVariable(self_param->toString(), self_value->getType());
             func_param.back().push_back(self_param_var);
         }
     }
+    // std::cerr << "GOOD" << std::endl;
     if (node.call_params) {
         auto call_params = node.call_params;
         for (size_t i = 0; i < call_params->expressions.size(); ++i) {
@@ -797,8 +836,10 @@ void IRGenerator::visit(MethodCallExpression& node) {
         os << "  " << reg_name << " = call " << function_val->getType()->toString() << " @" << function_name << "(";
         node.ir_value = new myllvm::Instruction(reg_name, function_val->getType());
     }
+    // std::cerr << "??" << std::endl;
     for (size_t i = 0; i < func_param.back().size(); ++i) {
         if (func_param.back()[i]) {
+            // std::cerr << function_val->isParamRef(i) << std::endl;
             if (!function_val->isParamRef(i)) os << func_param.back()[i]->getType()->toString() << ' ' << func_param.back()[i]->toString();
             else os << "ptr " << func_param.back()[i]->toString();
             if (i != func_param.back().size() - 1) {
@@ -821,6 +862,10 @@ void IRGenerator::visit(IndexExpression& node) {
     auto base_value = node.base_expression->ir_value;
     auto index_value = node.index_expression->ir_value;
     auto array_type = node.base_expression->type;
+    if (array_type[0] == '&') {
+        array_type = array_type.substr(1); // 去掉引用符号，获取数组的实际类型
+        base_value = builder->createLoad(context["&"], base_value); // 加载数组值
+    }
     std::cerr << "Generating IR for index expression with array type: " << array_type << std::endl;
     std::string array_element_type;
     size_t array_len;
@@ -861,7 +906,7 @@ void IRGenerator::visit(StructExpression& node) {
         auto field_value = field->ir_value;
         // std::cerr << field_type->toString() << std::endl;
         // std::cerr << field_value->toString() << std::endl;
-        auto field_ptr = builder->createGetElementPtr(type, ptr, idx, true);
+        auto field_ptr = builder->createGetElementPtr(type, ptr, idx);
         builder->createStore(field_type, field_value, field_ptr);
     }
     node.ir_value = builder->createLoad(type, ptr);
@@ -900,7 +945,11 @@ void IRGenerator::visit(ArrayExpression& node) {
             builder->createStore(llvm_array_element_type, value, ele_ptr);
         }
     }
-    node.ir_value = builder->createLoad(llvm_array_type, ptr);
+    if (node.is_ptr) {
+        node.ir_value = ptr;
+    } else {
+        node.ir_value = builder->createLoad(llvm_array_type, ptr);
+    }
 }
 
 void IRGenerator::visit(GroupedExpression& node) {
