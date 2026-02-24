@@ -24,12 +24,13 @@ int main(int argc, char* argv[]) {
     }
 
     std::string test_name = argv[1];
-    std::string test_file_path = "../.RCompiler-Testcases/IR-1/src/" + test_name + "/" + test_name + ".rx";
+    std::string test_file_path = "../.RCompiler-Testcases/semantic-2/src/" + test_name + "/" + test_name + ".rx";
     
     // 检查文件是否存在
     if (!std::filesystem::exists(test_file_path)) {
-        std::cerr << "Error: Test file not found: " << test_file_path << std::endl;
-        return 1;
+        test_file_path = "../.RCompiler-Testcases/semantic-1/src/" + test_name + "/" + test_name + ".rx";
+        // std::cerr << "Error: Test file not found: " << test_file_path << std::endl;
+        // return 1;
     }
     
     // 读取测试文件内容

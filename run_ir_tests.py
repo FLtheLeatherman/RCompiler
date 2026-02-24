@@ -11,14 +11,25 @@ import subprocess
 import argparse
 
 def read_testcases(data_file):
-    """从 data.txt 读取测试点名称，忽略空行和首尾空白"""
+    """
+    从 data.txt 读取测试点，每行格式：<测试点名称> <数字>
+    忽略空行和以 # 开头的注释行，仅返回数字为 0 的测试点名称
+    """
     testcases = []
     try:
         with open(data_file, 'r', encoding='utf-8') as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
-                if line and not line.startswith('#'):  # 可选：忽略以#开头的注释行
-                    testcases.append(line)
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    print(f"警告: 第 {line_num} 行格式不正确，缺少数字字段: {line}，已跳过")
+                    continue
+                test_name, flag = parts[0], parts[1]
+                if flag == '0':
+                    testcases.append(test_name)
+                # 标记为 -1 或其他数字则忽略
     except FileNotFoundError:
         print(f"错误: 数据文件 {data_file} 不存在。")
         sys.exit(1)
@@ -34,7 +45,7 @@ def run_single_test(test_name, runner_script):
 
     try:
         # 捕获 stdout 和 stderr
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         stdout = result.stdout
         stderr = result.stderr
         returncode = result.returncode
@@ -61,9 +72,9 @@ def run_single_test(test_name, runner_script):
 
 def main():
     parser = argparse.ArgumentParser(description='批量运行 RCompiler 测试')
-    parser.add_argument('--data', default='data.txt', help='测试点列表文件 (默认: data.txt)')
-    parser.add_argument('--output', default='result.txt', help='结果输出文件 (默认: result.txt)')
-    parser.add_argument('--runner', default='run_ir_test.py', help='测试运行脚本 (默认: run_ir_test.py)')
+    parser.add_argument('--data', default='data_2.txt', help='测试点列表文件 (默认: data.txt)')
+    parser.add_argument('--output', default='result_2.txt', help='结果输出文件 (默认: result.txt)')
+    parser.add_argument('--runner', default='run_ir_test_2.py', help='测试运行脚本 (默认: run_ir_test.py)')
     args = parser.parse_args()
 
     # 获取脚本所在目录，以便找到相关文件

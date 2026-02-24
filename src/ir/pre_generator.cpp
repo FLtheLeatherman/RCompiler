@@ -11,13 +11,13 @@ myllvm::Type* PreGenerator::getLLVMType(std::string type_name) {
         }
     } else if (type_name[0] == '[') {
         std::string num;
-        size_t pos = type_name.find_first_of(']') + 1;
+        size_t pos = type_name.find_last_of(']') + 1;
         while (pos < type_name.size() && std::isdigit(type_name[pos])) {
             num += type_name[pos];
             pos++;
         }
         uint32_t array_size = std::stoul(num);
-        std::string element_type_name = type_name.substr(1, type_name.find_first_of(']') - 1);
+        std::string element_type_name = type_name.substr(1, type_name.find_last_of(']') - 1);
         myllvm::Type* element_type = getLLVMType(element_type_name);
         auto array_type = new myllvm::ArrayType(element_type, array_size);
         return array_type;
@@ -54,6 +54,10 @@ PreGenerator::PreGenerator(myllvm::IRBuilder *ir_builder, Scope *root_scope)
     auto exit_val = new myllvm::Function("exit", context["()"], false, false);
     exit_val->newParamIsRef(false); // exit 的参数不是引用类型
     functions["exit"] = exit_val;
+
+    auto printInt_val = new myllvm::Function("printInt", context["()"], false, false);
+    printInt_val->newParamIsRef(false); // printInt 的参数不是引用类型
+    functions["printInt"] = printInt_val;
 
     auto printlnInt_val = new myllvm::Function("printlnInt", context["()"], false, false);
     printlnInt_val->newParamIsRef(false); // printlnInt 的参数不是引用类型

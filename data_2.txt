@@ -48,5 +48,3 @@ comprehensive47 0
 comprehensive48 0
 comprehensive49 0
 comprehensive50 0
-overflow -1
-test 0

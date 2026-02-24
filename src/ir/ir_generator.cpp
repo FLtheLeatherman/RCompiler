@@ -11,13 +11,13 @@ myllvm::Type* IRGenerator::getLLVMType(std::string type_name) {
         }
     } else if (type_name[0] == '[') {
         std::string num;
-        size_t pos = type_name.find_first_of(']') + 1;
+        size_t pos = type_name.find_last_of(']') + 1;
         while (pos < type_name.size() && std::isdigit(type_name[pos])) {
             num += type_name[pos];
             pos++;
         }
         uint32_t array_size = std::stoul(num);
-        std::string element_type_name = type_name.substr(1, type_name.find_first_of(']') - 1);
+        std::string element_type_name = type_name.substr(1, type_name.find_last_of(']') - 1);
         myllvm::Type* element_type = getLLVMType(element_type_name);
         auto array_type = new myllvm::ArrayType(element_type, array_size);
         return array_type;
@@ -57,6 +57,7 @@ IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder 
     const std::unordered_map<std::string, myllvm::Type*> &ctx)
     : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder), functions(func), context(ctx) {
     os << "declare void @exit(i32)" << std::endl;
+    os << "declare void @printInt(i32)" << std::endl;
     os << "declare void @printlnInt(i32)" << std::endl;
     os << "declare i32 @getInt()" << std::endl;
 }
@@ -121,7 +122,7 @@ void IRGenerator::visit(Function& node) {
         node.function_parameters->accept(this);
     }
     auto func_param_list = func_param.back(); // 获取当前函数的参数列表
-    std::cerr << func_param_list.size() << std::endl;
+    // std::cerr << func_param_list.size() << std::endl;
     func_param.pop_back(); // 处理完参数后弹出当前函数的参数列表
     for (size_t i = 0; i < func_param_list.size(); ++i) {
         os << func_param_list[i]->getType()->toString() << " " << func_param_list[i]->toString();
@@ -139,12 +140,12 @@ void IRGenerator::visit(Function& node) {
         os << " {" << std::endl;
         os << "entry:" << std::endl;
         for (size_t i = 0; i < func_param_list.size(); ++i) {
-            // if (func_param_list[i]->getType()->isPointer()) {
-            //     // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
-            //     auto var_name = func_param_list[i]->toString().substr(1);
-            //     local_variables_stack.back()[var_name] = func_param_list[i];
-            //     continue;
-            // }
+            if (func_param_list[i]->getType()->isPointer()) {
+                // 如果参数是指针类型，直接在局部变量表中记录这个参数，无需创建新的 Alloca
+                auto var_name = func_param_list[i]->toString().substr(1);
+                local_variables_stack.back()[var_name] = func_param_list[i];
+                continue;
+            }
             auto var_name = func_param_list[i]->toString().substr(1);
             auto num = var_counter[var_name]++;
             auto real_value = new myllvm::LocalVariable("%" + var_name + "." + std::to_string(num), func_param_list[i]->getType());
@@ -305,12 +306,12 @@ void IRGenerator::visit(TypedSelf& node) {
 }
 
 void IRGenerator::visit(FunctionParam& node) {
-    if (node.type) {
-        node.type->accept(this);
-    }
-    if (node.pattern_no_top_alt) {
-        node.pattern_no_top_alt->accept(this);
-    }
+    // if (node.type) {
+    //     node.type->accept(this);
+    // }
+    // if (node.pattern_no_top_alt) {
+    //     node.pattern_no_top_alt->accept(this);
+    // }
     auto llvm_type = getLLVMType(node.type->type);
     auto identifier = "%" + std::dynamic_pointer_cast<IdentifierPattern>(node.pattern_no_top_alt->child)->identifier;
     auto param_value = new myllvm::LocalVariable(identifier, llvm_type);
@@ -334,7 +335,7 @@ void IRGenerator::visit(StructStruct& node) {
 void IRGenerator::visit(StructFields& node) {
     for (auto& field : node.struct_fields) {
         if (field) {
-            field->accept(this);
+            // field->accept(this);
             struct_fields.push_back(std::make_pair(field->identifier, getLLVMType(field->type->type))); // 将字段类型添加到当前结构体的字段类型列表中
         }
     }
@@ -475,7 +476,7 @@ void IRGenerator::visit(IntegerLiteral& node) {
         type_string = "i32"; // 默认类型为 i32
     }
     myllvm::Type* llvm_type = getLLVMType(type_string);
-    std::cerr << llvm_type->toString() << ' ' << temp_value << std::endl;
+    // std::cerr << llvm_type->toString() << ' ' << temp_value << std::endl;
     // std::cerr << llvm_type->toString() << std::endl;
     node.ir_value = new myllvm::Constant(temp_value, llvm_type);
 }
@@ -505,7 +506,6 @@ void IRGenerator::visit(FieldExpression& node) {
     if (base_value->getType()->isPointer()) {
         auto pointer_type = dynamic_cast<myllvm::PointerType*>(base_value->getType());
         struct_type = dynamic_cast<myllvm::StructType*>(pointer_type->getPointeeType());
-        base_value = builder->createLoad(context["&"], base_value); // 如果父表达式是指针，先加载出结构体值
     } else {
         struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
     }
@@ -551,7 +551,8 @@ void IRGenerator::visit(DereferenceExpression& node) {
     if (!node.is_ptr) {
         auto pointer_type = dynamic_cast<myllvm::PointerType*>(node.expression->ir_value->getType());
         auto pointee_type = pointer_type->getPointeeType();
-        node.ir_value = builder->createLoad(pointee_type, node.expression->ir_value);
+        auto ptr = node.expression->ir_value;
+        node.ir_value = builder->createLoad(pointee_type, ptr);
     } else {
         node.ir_value = node.expression->ir_value;
     }
@@ -605,7 +606,7 @@ void IRGenerator::visit(BinaryExpression& node) {
             node.ir_value = builder->createBinaryOp("shl", lhs, rhs);
             break;
         case BinaryExpression::SHR:
-            node.ir_value = builder->createBinaryOp("shr", lhs, rhs);
+            node.ir_value = builder->createBinaryOp("ashr", lhs, rhs);
             break;
         case BinaryExpression::EQ_EQ:
             node.ir_value = builder->createIcmp("eq", lhs, rhs);
@@ -740,7 +741,7 @@ void IRGenerator::visit(CompoundAssignmentExpression& node) {
             result = builder->createBinaryOp("shl", lhs_value, rhs);
             break;
         case CompoundAssignmentExpression::SHR_EQ:
-            result = builder->createBinaryOp("shr", lhs_value, rhs);
+            result = builder->createBinaryOp("ashr", lhs_value, rhs);
             break;
     }
     if (!lhs->getType()->isPointer()) {
@@ -804,6 +805,11 @@ void IRGenerator::visit(CallExpression& node) {
         }
     }
     os << ")" << std::endl;
+    if (node.is_ptr) {
+        auto ptr = builder->createAlloca(builder->newTempReg(), function_val->getType());
+        builder->createStore(function_val->getType(), node.ir_value, ptr);
+        node.ir_value = ptr;
+    }
     func_param.pop_back();
 }
 
@@ -820,7 +826,7 @@ void IRGenerator::visit(MethodCallExpression& node) {
     } else {
         function_name = (node.expression->ir_value->getType()->toString().substr(8)) + ".." + node.path_ident_segment->identifier;
     }
-    std::cerr << "Generating IR for function call: " << function_name << std::endl;
+    std::cerr << "Generating IR for method call: " << function_name << std::endl;
     auto function_val = functions[function_name];
     if (function_val->hasSelf()) {
         // std::cerr << "Function has self parameter" << std::endl;
@@ -844,7 +850,7 @@ void IRGenerator::visit(MethodCallExpression& node) {
         for (size_t i = 0; i < call_params->expressions.size(); ++i) {
             auto expr = call_params->expressions[i];
             if (expr) {
-                if (function_val->isParamRef(i)) expr->is_ptr = true;
+                if (function_val->isParamRef(i + function_val->hasSelf())) expr->is_ptr = true;
                 expr->accept(this);
                 auto temp_var_value = new myllvm::LocalVariable(expr->ir_value->toString(), expr->ir_value->getType());
                 func_param.back().push_back(temp_var_value); // 将函数调用参数的 IR 值添加到当前函数参数列表中
@@ -870,6 +876,11 @@ void IRGenerator::visit(MethodCallExpression& node) {
         }
     }
     os << ")" << std::endl;
+    if (node.is_ptr) {
+        auto ptr = builder->createAlloca(builder->newTempReg(), function_val->getType());
+        builder->createStore(function_val->getType(), node.ir_value, ptr);
+        node.ir_value = ptr;
+    }
     func_param.pop_back();
 }
 
@@ -886,7 +897,6 @@ void IRGenerator::visit(IndexExpression& node) {
     auto array_type = node.base_expression->type;
     if (array_type[0] == '&') {
         array_type = array_type.substr(1); // 去掉引用符号，获取数组的实际类型
-        base_value = builder->createLoad(context["&"], base_value); // 加载数组值
     }
     std::cerr << "Generating IR for index expression with array type: " << array_type << std::endl;
     std::string array_element_type;
@@ -950,8 +960,11 @@ void IRGenerator::visit(ArrayExpression& node) {
             break;
         }
     }
+    // std::cerr << array_element_type << ' ' << array_len << std::endl;
     auto llvm_array_type = getLLVMType(array_type);
+    // std::cerr << llvm_array_type->toString() << std::endl;
     auto llvm_array_element_type = getLLVMType(array_element_type);
+    // std::cerr << llvm_array_type->toString() << ' ' << llvm_array_element_type->toString() << std::endl;
     std::string var_name = "array.expr";
     auto ptr = builder->createAlloca("%" + var_name + "." + std::to_string(var_counter[var_name]++), llvm_array_type);
     if (node.array_elements->is_semicolon_separated) {
@@ -988,9 +1001,8 @@ void IRGenerator::visit(BlockExpression& node) {
     
     if (node.statements) {
         node.statements->accept(this);
+        node.ir_value = node.statements->ir_value; // 将 block 中最后一个语句的 IR 值作为 block 的 IR 值
     }
-
-    node.ir_value = node.statements->ir_value; // 将 block 中最后一个语句的 IR 值作为 block 的 IR 值
     
     current_scope = prev_scope;
     current_scope->nextChild();
@@ -1006,10 +1018,13 @@ void IRGenerator::visit(IfExpression& node) {
     auto end_label = builder->getLabel("if_end");
     bool need_end_label = false;
     current_basic_block = true_label;
+    std::string from_true_label, from_false_label;
     if (node.then_block) {
         node.then_block->accept(this);
     }
+    // std::cerr << "??" << std::endl;
     if (!label_has_br_or_ret[current_basic_block]) {
+        from_true_label = current_basic_block;
         builder->createUncondBr(end_label);
         need_end_label = true;
     }
@@ -1019,6 +1034,7 @@ void IRGenerator::visit(IfExpression& node) {
         node.else_branch->accept(this);
     }
     if (!label_has_br_or_ret[current_basic_block]) {
+        from_false_label = current_basic_block;
         builder->createUncondBr(end_label);
         need_end_label = true;
     }
@@ -1027,9 +1043,9 @@ void IRGenerator::visit(IfExpression& node) {
         current_basic_block = end_label;
         if (node.type != "()" && node.type != "!") {
             if (node.else_branch) {
-                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {node.else_branch->ir_value, false_label}});
+                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, from_true_label}, {node.else_branch->ir_value, from_false_label}});
             } else {
-                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {nullptr, false_label}});
+                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, from_true_label}, {nullptr, from_false_label}});
             }
         }
     }
