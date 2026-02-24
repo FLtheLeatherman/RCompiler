@@ -1,4 +1,7 @@
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <filesystem>
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "parser/astprinter.hpp"
@@ -14,17 +17,40 @@
 #include "ir/pre_generator.hpp"
 #include "ir/ir_generator.hpp"
 
-int main() {
-    freopen("test.in", "r", stdin);
-    freopen("test.ll", "w", stdout);
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <test_name>" << std::endl;
+        return 1;
+    }
+
+    std::string test_name = argv[1];
+    std::string test_file_path = "../.RCompiler-Testcases/IR-1/src/" + test_name + "/" + test_name + ".rx";
+    
+    // 检查文件是否存在
+    if (!std::filesystem::exists(test_file_path)) {
+        std::cerr << "Error: Test file not found: " << test_file_path << std::endl;
+        return 1;
+    }
+    
+    // 读取测试文件内容
+    std::ifstream test_file(test_file_path);
+    if (!test_file.is_open()) {
+        std::cerr << "Error: Cannot open test file: " << test_file_path << std::endl;
+        return 1;
+    }
     
     std::string code;
-    char ch = getchar();
-    while (ch != EOF) {
-        code += ch;
-        ch = getchar();
+    std::string line;
+    while (std::getline(test_file, line)) {
+        code += line + "\n";
     }
-    // std::cout << code << std::endl;
+    test_file.close();
+    
+    std::cout << "Running test: " << test_name << std::endl;
+    std::cout << "Test file: " << test_file_path << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    freopen("output.ll", "w", stdout);
 
     Lexer lexer;
     auto tokens = lexer.lex(code);

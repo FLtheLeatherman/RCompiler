@@ -52,27 +52,13 @@ myllvm::Value* IRGenerator::getVarValue(std::string var_name) {
 }
 
 
-IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder)
-    : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder) {
-    context["i32"] = new myllvm::Int32Type();
-    context["u32"] = new myllvm::Int32Type();
-    context["isize"] = new myllvm::Int32Type();
-    context["usize"] = new myllvm::Int32Type();
-    context["integer"] = new myllvm::Int32Type();
-    context["char"] = new myllvm::Int8Type();
-    context["bool"] = new myllvm::Int1Type();
-    context["()"] = new myllvm::VoidType();
-    context["&"] = new myllvm::PointerType(nullptr);
-
-    auto exit_val = new myllvm::Function("exit", context["()"], false, false);
-    exit_val->newParamIsRef(false); // exit 的参数不是引用类型
-    functions["exit"] = exit_val;
+IRGenerator::IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder, 
+    const std::unordered_map<std::string, myllvm::Function*> &func, 
+    const std::unordered_map<std::string, myllvm::Type*> &ctx)
+    : os(os), current_scope(root_scope), root_scope(root_scope), builder(builder), functions(func), context(ctx) {
     os << "declare void @exit(i32)" << std::endl;
-
-    auto printlnInt_val = new myllvm::Function("printlnInt", context["()"], false, false);
-    printlnInt_val->newParamIsRef(false); // printlnInt 的参数不是引用类型
-    functions["printlnInt"] = printlnInt_val;
     os << "declare void @printlnInt(i32)" << std::endl;
+    os << "declare i32 @getInt()" << std::endl;
 }
 
 void IRGenerator::visit(Crate& node) {
@@ -149,7 +135,6 @@ void IRGenerator::visit(Function& node) {
         }
     }
     os << ")";
-    functions[function_name] = function_val;
     if (node.block_expression) {
         os << " {" << std::endl;
         os << "entry:" << std::endl;
@@ -344,8 +329,6 @@ void IRGenerator::visit(StructStruct& node) {
     if (node.struct_fields) {
         node.struct_fields->accept(this);
     }
-    builder->createTypeDef(node.identifier, struct_fields);
-    context["struct." + node.identifier] = new myllvm::StructType("%struct." + node.identifier, struct_fields); // 将结构体类型添加到上下文中，以便后续使用
 }
 
 void IRGenerator::visit(StructFields& node) {
@@ -419,6 +402,7 @@ void IRGenerator::visit(ExpressionStatement& node) {
 void IRGenerator::visit(Statements& node) {
     std::cerr << "Generating IR for block with " << node.statements.size() << " statements" << std::endl;
     for (auto& stmt : node.statements) {
+        current_function_has_return = false;
         if (stmt) {
             stmt->accept(this);
         }
@@ -526,7 +510,8 @@ void IRGenerator::visit(FieldExpression& node) {
         struct_type = dynamic_cast<myllvm::StructType*>(base_value->getType());
     }
     auto idx = struct_type->getFieldIdx(field_name);
-    auto ptr = builder->createGetElementPtr(struct_type, base_value, idx);
+    auto field_type = struct_type->getFieldType(idx);
+    auto ptr = builder->createGetElementPtr(struct_type, field_type, base_value, idx);
     if (node.is_ptr) {
         node.ir_value = ptr; // 如果父表达式需要指针，直接返回 GEP 结果
     } else {
@@ -563,9 +548,13 @@ void IRGenerator::visit(DereferenceExpression& node) {
         node.expression->is_ptr = true;
         node.expression->accept(this);    
     }
-    auto pointer_type = dynamic_cast<myllvm::PointerType*>(node.expression->ir_value->getType());
-    auto pointee_type = pointer_type->getPointeeType();
-    node.ir_value = builder->createLoad(pointee_type, node.expression->ir_value);
+    if (!node.is_ptr) {
+        auto pointer_type = dynamic_cast<myllvm::PointerType*>(node.expression->ir_value->getType());
+        auto pointee_type = pointer_type->getPointeeType();
+        node.ir_value = builder->createLoad(pointee_type, node.expression->ir_value);
+    } else {
+        node.ir_value = node.expression->ir_value;
+    }
 }
 
 void IRGenerator::visit(BinaryExpression& node) {
@@ -598,10 +587,10 @@ void IRGenerator::visit(BinaryExpression& node) {
             node.ir_value = builder->createBinaryOp("mul", lhs, rhs);
             break;
         case BinaryExpression::SLASH:
-            node.ir_value = builder->createBinaryOp("div", lhs, rhs);
+            node.ir_value = builder->createBinaryOp("sdiv", lhs, rhs);
             break;
         case BinaryExpression::PERCENT:
-            node.ir_value = builder->createBinaryOp("rem", lhs, rhs);
+            node.ir_value = builder->createBinaryOp("srem", lhs, rhs);
             break;
         case BinaryExpression::CARET:
             node.ir_value = builder->createBinaryOp("xor", lhs, rhs);
@@ -711,7 +700,16 @@ void IRGenerator::visit(CompoundAssignmentExpression& node) {
     }
     auto lhs = node.lhs->ir_value;
     auto rhs = node.rhs->ir_value;
-    auto lhs_value = builder->createLoad(lhs->getType(), lhs);
+    myllvm::Instruction* lhs_value;
+    myllvm::Type* pointee_type;
+    if (!lhs->getType()->isPointer()) {
+        lhs_value = builder->createLoad(lhs->getType(), lhs);
+    } else {
+        std::cerr << "is pointer!" << std::endl;
+        auto pointer_type = dynamic_cast<myllvm::PointerType*>(lhs->getType());
+        pointee_type = pointer_type->getPointeeType();
+        lhs_value = builder->createLoad(pointee_type, lhs);
+    }
     myllvm::Value* result;
     switch (node.type) {
         case CompoundAssignmentExpression::PLUS_EQ:
@@ -724,10 +722,10 @@ void IRGenerator::visit(CompoundAssignmentExpression& node) {
             result = builder->createBinaryOp("mul", lhs_value, rhs);
             break;
         case CompoundAssignmentExpression::SLASH_EQ:
-            result = builder->createBinaryOp("div", lhs_value, rhs);
+            result = builder->createBinaryOp("sdiv", lhs_value, rhs);
             break;
         case CompoundAssignmentExpression::PERCENT_EQ:
-            result = builder->createBinaryOp("rem", lhs_value, rhs);
+            result = builder->createBinaryOp("srem", lhs_value, rhs);
             break;
         case CompoundAssignmentExpression::CARET_EQ:
             result = builder->createBinaryOp("xor", lhs_value, rhs);
@@ -745,7 +743,11 @@ void IRGenerator::visit(CompoundAssignmentExpression& node) {
             result = builder->createBinaryOp("shr", lhs_value, rhs);
             break;
     }
-    builder->createStore(lhs->getType(), result, lhs);
+    if (!lhs->getType()->isPointer()) {
+        builder->createStore(lhs->getType(), result, lhs);
+    } else {
+        builder->createStore(pointee_type, result, lhs);
+    }
     node.ir_value = new myllvm::Instruction("()", context["void"]);
 }
 
@@ -898,7 +900,7 @@ void IRGenerator::visit(IndexExpression& node) {
     }
     auto llvm_array_type = getLLVMType(array_type);
     auto llvm_array_element_type = getLLVMType(array_element_type);
-    auto ptr = builder->createGetElementPtr(llvm_array_type, base_value, index_value);
+    auto ptr = builder->createGetElementPtr(llvm_array_type, llvm_array_element_type, base_value, index_value);
     if (node.is_ptr) {
         node.ir_value = ptr;
     } else {
@@ -926,7 +928,7 @@ void IRGenerator::visit(StructExpression& node) {
         auto field_value = field->ir_value;
         // std::cerr << field_type->toString() << std::endl;
         // std::cerr << field_value->toString() << std::endl;
-        auto field_ptr = builder->createGetElementPtr(type, ptr, idx);
+        auto field_ptr = builder->createGetElementPtr(type, field_type, ptr, idx);
         builder->createStore(field_type, field_value, field_ptr);
     }
     node.ir_value = builder->createLoad(type, ptr);
@@ -955,13 +957,13 @@ void IRGenerator::visit(ArrayExpression& node) {
     if (node.array_elements->is_semicolon_separated) {
         auto value = node.array_elements->expressions[0]->ir_value;
         for (size_t pos = 0; pos < array_len; ++pos) {
-            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, ptr, pos);
+            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, llvm_array_element_type, ptr, pos);
             builder->createStore(llvm_array_element_type, value, ele_ptr);
         }
     } else {
         for (size_t pos = 0; pos < array_len; ++pos) {
             auto value = node.array_elements->expressions[pos]->ir_value;
-            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, ptr, pos);
+            auto ele_ptr = builder->createGetElementPtr(llvm_array_type, llvm_array_element_type, ptr, pos);
             builder->createStore(llvm_array_element_type, value, ele_ptr);
         }
     }
@@ -1002,24 +1004,33 @@ void IRGenerator::visit(IfExpression& node) {
     auto [true_label, false_label] = builder->createBr(node.condition->ir_value);
     std::cerr << "True label: " << true_label << ", False label: " << false_label << std::endl;
     auto end_label = builder->getLabel("if_end");
+    bool need_end_label = false;
     current_basic_block = true_label;
     if (node.then_block) {
         node.then_block->accept(this);
     }
-    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(end_label);
+    if (!label_has_br_or_ret[current_basic_block]) {
+        builder->createUncondBr(end_label);
+        need_end_label = true;
+    }
     builder->createLabel(false_label);
     current_basic_block = false_label;
     if (node.else_branch) {
         node.else_branch->accept(this);
     }
-    if (!label_has_br_or_ret[current_basic_block]) builder->createUncondBr(end_label);
-    builder->createLabel(end_label);
-    current_basic_block = end_label;
-    if (node.type != "()") {
-        if (node.else_branch) {
-            node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {node.else_branch->ir_value, false_label}});
-        } else {
-            node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {nullptr, false_label}});
+    if (!label_has_br_or_ret[current_basic_block]) {
+        builder->createUncondBr(end_label);
+        need_end_label = true;
+    }
+    if (need_end_label) {
+        builder->createLabel(end_label);
+        current_basic_block = end_label;
+        if (node.type != "()" && node.type != "!") {
+            if (node.else_branch) {
+                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {node.else_branch->ir_value, false_label}});
+            } else {
+                node.ir_value = builder->createPHI(getLLVMType(node.type), {{node.then_block->ir_value, true_label}, {nullptr, false_label}});
+            }
         }
     }
 }
@@ -1128,6 +1139,7 @@ void IRGenerator::visit(ReturnExpression& node) {
         builder->createRet(void_val);
     }
     current_function_has_return = true;
+    label_has_br_or_ret[current_basic_block] = true;
 }
 
 void IRGenerator::visit(Condition& node) {

@@ -96,13 +96,13 @@ void IRBuilder::createTypeDef(std::string struct_name, std::vector<std::pair<std
     os << " }" << std::endl;
     return; // 类型定义没有返回值
 }
-Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, size_t idx) {
-    Instruction* result = new Instruction(newTempReg(), new PointerType(nullptr)); // GEP的结果类型是指向元素类型的指针
+Instruction* IRBuilder::createGetElementPtr(Type* type, Type* pointee_type, Value* ptr, size_t idx) {
+    Instruction* result = new Instruction(newTempReg(), new PointerType(pointee_type)); // GEP的结果类型是指向元素类型的指针
     os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 0, i32 " << idx << std::endl;
     return result;
 }
-Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, Value* idx) {
-    Instruction* result = new Instruction(newTempReg(), new PointerType(nullptr)); // GEP的结果类型是指向元素类型的指针
+Instruction* IRBuilder::createGetElementPtr(Type* type, Type* pointee_type, Value* ptr, Value* idx) {
+    Instruction* result = new Instruction(newTempReg(), new PointerType(pointee_type)); // GEP的结果类型是指向元素类型的指针
     os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 0, i32 " << idx->toString() << std::endl;
     return result;
 }

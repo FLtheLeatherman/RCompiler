@@ -15,34 +15,24 @@
 #include <cstring>
 #include <cassert>
 
-class IRGenerator : public ASTVisitor {
+class PreGenerator : public ASTVisitor {
 private:
-    std::ostream &os;
+    myllvm::IRBuilder *ir_builder;
     Scope *current_scope;
     Scope *root_scope;
-    myllvm::IRBuilder *builder;
     std::unordered_map<std::string, myllvm::Function*> functions;
-    std::unordered_map<std::string, myllvm::GlobalVariable*> global_variables;
-    std::vector<std::unordered_map<std::string, myllvm::LocalVariable*>> local_variables_stack; // 用于处理局部变量的作用域
-    std::unordered_map<std::string, uint32_t> var_counter; // 用于生成唯一的局部变量名
     std::unordered_map<std::string, myllvm::Type*> context; // 类型缓存，避免重复创建相同的类型
-    std::string current_basic_block; // 当前所在的基本块标签
-    bool current_function_has_return; // 当前函数是否已经有 return 语句
-    std::vector<std::string> break_labels_stack; // 用于处理 break 语句的标签栈
-    std::vector<std::string> continue_labels_stack; // 用于处理 continue 语句的标签栈
-    std::vector<std::vector<std::pair<myllvm::Value*, std::string>>> phi_nodes_stack; // 用于处理 PHI 节点的栈
-    std::unordered_map<std::string, bool> label_has_br_or_ret; // 记录每个标签是否已经有分支或返回指令
     std::vector<std::vector<myllvm::LocalVariable*>> func_param;
     std::vector<std::pair<std::string, myllvm::Type*>> struct_fields; // 用于处理结构体定义时的字段类型
     std::string current_impl;
 
     myllvm::Type* getLLVMType(std::string);
-    myllvm::Value* getVarValue(std::string);
 public:
-    IRGenerator(std::ostream &os, Scope *root_scope, myllvm::IRBuilder *builder, 
-        const std::unordered_map<std::string, myllvm::Function*> &func, 
-        const std::unordered_map<std::string, myllvm::Type*> &ctx);
-    ~IRGenerator() = default;
+    PreGenerator(myllvm::IRBuilder *ir_builder, Scope *root_scope);
+    ~PreGenerator() = default;
+
+    const std::unordered_map<std::string, myllvm::Function*>& getFunctions();
+    const std::unordered_map<std::string, myllvm::Type*>& getContext();
 
     // 顶层节点
     void visit(Crate& node) override;
