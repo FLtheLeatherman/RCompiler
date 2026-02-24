@@ -18,6 +18,12 @@ bool Type::isArray() const {
 bool Type::isPointer() const {
     return false;
 }
+bool Type::isI32() const {
+    return false;
+}
+bool Type::isI1() const {
+    return false;
+}
 
 bool VoidType::isVoid() const {
     return true;
@@ -31,6 +37,9 @@ uint32_t Int32Type::getBitWidth() const {
 }
 std::string Int32Type::toString() const {
     return "i32";
+}
+bool Int32Type::isI32() const {
+    return true;
 }
 
 Int8Type::Int8Type() {
@@ -51,6 +60,9 @@ uint32_t Int1Type::getBitWidth() const {
 }
 std::string Int1Type::toString() const {
     return "i1";
+}
+bool Int1Type::isI1() const {
+    return true;
 }
 
 StructType::StructType(std::string name, const std::vector<std::pair<std::string, Type*>>& field) 

@@ -15,6 +15,8 @@ public:
     virtual bool isStruct() const;
     virtual bool isArray() const;
     virtual bool isPointer() const;
+    virtual bool isI32() const;
+    virtual bool isI1() const;
 };
 
 class VoidType : public Type {
@@ -36,6 +38,7 @@ public:
     Int32Type();
     uint32_t getBitWidth() const override;
     std::string toString() const override;
+    bool isI32() const override;
 };
 
 class Int8Type : public IntegerType {
@@ -50,6 +53,7 @@ public:
     Int1Type();
     uint32_t getBitWidth() const override;
     std::string toString() const override;
+    bool isI1() const override;
 };
 
 class StructType : public Type {

@@ -106,5 +106,10 @@ Instruction* IRBuilder::createGetElementPtr(Type* type, Value* ptr, Value* idx) 
     os << "  " << result->toString() << " = getelementptr " << type->toString() << ", ptr " << ptr->toString() << ", i32 0, i32 " << idx->toString() << std::endl;
     return result;
 }
+Instruction* IRBuilder::createZext(Value* value) {
+    Instruction* result = new Instruction(newTempReg(), new Int32Type());
+    os << "  " << result->toString() << " = zext i1 " << value->toString() << " to i32" << std::endl;
+    return result;
+}
 
 }

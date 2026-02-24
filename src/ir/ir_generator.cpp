@@ -557,7 +557,7 @@ void IRGenerator::visit(DereferenceExpression& node) {
 }
 
 void IRGenerator::visit(BinaryExpression& node) {
-    // std::cerr << "Generating IR for binary expression of type " << node.binary_type << std::endl;
+    std::cerr << "Generating IR for binary expression of type " << node.binary_type << std::endl;
     if (node.binary_type != BinaryExpression::AND_AND && node.binary_type != BinaryExpression::OR_OR) {
         if (node.lhs) {
             node.lhs->accept(this);
@@ -582,6 +582,7 @@ void IRGenerator::visit(BinaryExpression& node) {
             node.ir_value = builder->createBinaryOp("sub", lhs, rhs);
             break;
         case BinaryExpression::STAR:
+            // std::cerr << "Generating IR for mul" << std::endl;
             node.ir_value = builder->createBinaryOp("mul", lhs, rhs);
             break;
         case BinaryExpression::SLASH:
@@ -742,6 +743,13 @@ void IRGenerator::visit(TypeCastExpression& node) {
     }
     if (node.type) {
         node.type->accept(this);
+    }
+    auto prev_type = getLLVMType(node.expression->type);
+    auto goal_type = getLLVMType(node.type->type);
+    if (prev_type->isI1() && goal_type->isI32()) {
+        node.ir_value = builder->createZext(node.expression->ir_value);
+    } else {
+        node.ir_value = node.expression->ir_value;
     }
 }
 
@@ -956,6 +964,7 @@ void IRGenerator::visit(GroupedExpression& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    node.ir_value = node.expression->ir_value;
 }
 
 void IRGenerator::visit(BlockExpression& node) {
