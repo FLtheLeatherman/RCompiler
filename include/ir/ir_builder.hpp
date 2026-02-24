@@ -33,6 +33,7 @@ public:
     Instruction* createGetElementPtr(Type* type, Value* ptr, size_t idx);
     Instruction* createGetElementPtr(Type* type, Value* ptr, Value* idx);
     Instruction* createZext(Value* value);
+    GlobalVariable* createGlobal(std::string var_name, Type* type, Value* value);
 };
 
 }

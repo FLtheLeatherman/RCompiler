@@ -181,6 +181,9 @@ void TypeChecker::visit(Enumeration& node) {
 }
 
 void TypeChecker::visit(ConstantItem& node) {
+    if (node.type) {
+        node.type->accept(this);
+    }
     if (node.expression) {
         node.expression->accept(this);
     }

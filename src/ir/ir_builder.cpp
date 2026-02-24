@@ -111,5 +111,10 @@ Instruction* IRBuilder::createZext(Value* value) {
     os << "  " << result->toString() << " = zext i1 " << value->toString() << " to i32" << std::endl;
     return result;
 }
+GlobalVariable* IRBuilder::createGlobal(std::string var_name, Type* type, Value* value) {
+    GlobalVariable* result = new GlobalVariable(var_name, type);
+    os << result->toString() << " = global " << type->toString() << ' ' << value->toString() << std::endl;
+    return result;
+}
 
 }

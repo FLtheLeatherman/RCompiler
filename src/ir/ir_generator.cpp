@@ -204,6 +204,18 @@ void IRGenerator::visit(ConstantItem& node) {
     if (node.expression) {
         node.expression->accept(this);
     }
+    std::string var_name;
+    if (current_impl != "") {
+        var_name = current_impl + ".." + node.identifier;
+    } else {
+        var_name = node.identifier;
+    }
+    // std::cerr << var_name << std::endl;
+    // std::cerr << node.type->type << std::endl;
+    auto llvm_type = getLLVMType(node.type->type);
+    // std::cerr << llvm_type->toString() << std::endl;
+    auto ir_value = builder->createGlobal("@" + var_name, llvm_type, node.expression->ir_value);
+    global_variables[var_name] = ir_value;
 }
 
 void IRGenerator::visit(Trait& node) {
